@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Kart Runner 3D - Full Aesthetic</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #000; touch-action: none; }
+        #ui { position: absolute; inset: 0; color: white; z-index: 10; pointer-events: none; display: none; padding: 20px; }
+        .ui-element { pointer-events: auto; }
+        #menu { position: fixed; inset: 0; background: linear-gradient(135deg, #1e3a8a, #9333ea, #db2777); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; color: white; }
+        .btn { padding: 18px 35px; margin: 10px; border-radius: 20px; border: none; font-weight: 900; cursor: pointer; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); box-shadow: 0 10px 20px rgba(0,0,0,0.3); display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 130px; text-transform: uppercase; letter-spacing: 1px; }
+        .btn:hover { transform: translateY(-5px) scale(1.05); }
+        .btn-penguin { background: #0ea5e9; color: #f8fafc; }
+        .btn-fox { background: #f97316; color: #fff; }
+        .btn-turtle { background: #22c55e; color: #fff; }
+        canvas { display: block; position: fixed; top: 0; left: 0; z-index: 1; }
+        #game-over, #pause-menu { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(15px); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 200; color: white; }
+        .stat-row { display: flex; justify-content: space-between; width: 300px; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.1); }
+    </style>
+</head>
+<body>
+
+    <div id="ui">
+        <!-- Contador de Monedas e Imán -->
+        <div class="absolute top-5 left-5">
+            <div class="text-4xl font-black drop-shadow-2xl italic">🪙 <span id="score">0</span></div>
+            <div id="magnet-ui" class="hidden mt-3 bg-cyan-500/30 px-4 py-2 rounded-xl border border-cyan-400/50 backdrop-blur-md">
+                <span class="text-xs font-black uppercase text-cyan-200 tracking-tighter">🧲 IMÁN ACTIVADO</span>
+                <div class="w-32 h-2 bg-slate-800 mt-2 rounded-full overflow-hidden">
+                    <div id="magnet-bar" class="h-full bg-cyan-400 w-full"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Reloj de Tiempo -->
+        <div class="absolute top-5 left-1/2 -translate-x-1/2 text-2xl font-mono font-black bg-slate-900/80 px-6 py-2 rounded-full border-b-2 border-white/20 backdrop-blur-md">
+            <span id="timer">00:00</span>
+        </div>
+
+        <!-- Botón de Pausa -->
+        <div class="absolute top-5 right-5 ui-element">
+            <button class="bg-white/10 p-5 rounded-2xl border border-white/20 hover:bg-white/20 transition-colors" onclick="togglePause()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="white"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+            </button>
+        </div>
+    </div>
+
+    <div id="menu">
+        <h1 class="text-7xl font-black mb-4 italic drop-shadow-[0_5px_15px_rgba(0,0,0,0.5)] text-center tracking-tighter uppercase">Kart Runner 3D</h1>
+        <p class="mb-10 text-xl uppercase opacity-90 text-center px-4 tracking-[0.3em] font-bold text-yellow-300">Selecciona tu corredor</p>
+        <div class="flex flex-wrap justify-center gap-8">
+            <button class="btn btn-penguin" onclick="startGame('penguin')">
+                <span class="text-5xl mb-2">🐧</span><span>Tuxi</span>
+            </button>
+            <button class="btn btn-fox" onclick="startGame('fox')">
+                <span class="text-5xl mb-2">🦊</span><span>Gimpy</span>
+            </button>
+            <button class="btn btn-turtle" onclick="startGame('turtle')">
+                <span class="text-5xl mb-2">🐢</span><span>Poka</span>
+            </button>
+        </div>
+        <button class="mt-12 text-white/30 uppercase text-xs font-bold tracking-[0.4em] hover:text-white transition-colors" onclick="exitApp()">Cerrar Juego</button>
+    </div>
+
+    <div id="pause-menu">
+        <h2 class="text-7xl font-black mb-12 italic tracking-tighter">EN PAUSA</h2>
+        <button class="btn bg-white text-blue-900 text-2xl px-20 mb-4" onclick="togglePause()">REANUDAR</button>
+        <button class="btn bg-red-600 text-white text-xl px-20 mb-8" onclick="exitApp()">SALIR DEL JUEGO</button>
+        <button class="text-white/40 uppercase text-sm font-black tracking-widest hover:text-white transition-colors" onclick="location.reload()">REINICIAR</button>
+    </div>
+
+    <div id="game-over">
+        <h2 class="text-6xl font-black mb-4 text-red-500 italic tracking-tighter">¡COLISIÓN!</h2>
+        <div class="bg-white/5 p-8 rounded-3xl border border-white/10 backdrop-blur-sm mb-8">
+            <div class="stat-row">
+                <span class="text-white/60 uppercase text-sm font-bold">Posición Final</span>
+                <span id="final-rank" class="text-2xl font-black text-yellow-400">#--</span>
+            </div>
+            <div class="stat-row">
+                <span class="text-white/60 uppercase text-sm font-bold">Monedas</span>
+                <span id="final-coins" class="text-2xl font-black text-white">0</span>
+            </div>
+            <div class="stat-row">
+                <span class="text-white/60 uppercase text-sm font-bold">Tiempo</span>
+                <span id="final-time" class="text-2xl font-black text-white">00:00</span>
+            </div>
+        </div>
+        <div class="flex flex-col gap-4">
+            <button class="btn bg-white text-black text-2xl px-20" onclick="location.reload()">REINTENTAR</button>
+            <button class="btn bg-slate-800 text-white text-lg px-20" onclick="exitApp()">SALIR</button>
+        </div>
+    </div>
+
+    <script type="module">
+        let audioCtx, bgmInterval, bgmStep = 0;
+
+        function initAudio() {
+            if (audioCtx) return;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        function playSound(freq, type, duration, vol = 0.1, slideTo = null) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, audioCtx.currentTime + duration);
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + duration);
+        }
+
+        function playBGM() {
+            const bass = [110, 110, 130, 110, 146, 110, 130, 164];
+            const lead = [440, 0, 440, 523, 0, 587, 0, 659, 440, 523, 659, 783, 0, 587, 0, 523];
+            if(bgmInterval) clearInterval(bgmInterval);
+            bgmInterval = setInterval(() => {
+                if (!isPaused && gameActive) {
+                    playSound(55, 'sine', 0.1, 0.15); 
+                    playSound(bass[bgmStep % bass.length], 'triangle', 0.15, 0.08);
+                    if (bgmStep % 2 === 0) {
+                        const note = lead[(bgmStep / 2) % lead.length];
+                        if (note > 0) playSound(note, 'square', 0.2, 0.04);
+                    }
+                    bgmStep++;
+                }
+            }, 140);
+        }
+
+        let scene, camera, renderer, player;
+        let laneWidth = 4.5, currentLane = 0, targetX = 0;
+        let gameActive = false, isPaused = false, score = 0, elapsedTime = 0, lastMinuteMarked = 0;
+        let obstacles = [], coins = [], scenery = [], roadLines = [], clouds = [], kerbs = [], finishLines = [];
+        
+        let magnetActive = false;
+        let magnetTimeLeft = 0;
+        const MAGNET_DURATION_MS = 15000; 
+        let lastTimestamp = 0;
+        let timerInterval = null;
+
+        const SPEED_FACTOR = 1.57;
+
+        const biomes = {
+            penguin: { sky: 0xbae6fd, ground: 0xf8fafc, tree: 0xffffff, accent: 0x0ea5e9 },
+            fox: { sky: 0xfed7aa, ground: 0x9a3412, tree: 0xf97316, accent: 0xf97316 },
+            turtle: { sky: 0xdcfce7, ground: 0x14532d, tree: 0x22c55e, accent: 0x22c55e }
+        };
+
+        // Función para salir de la App (Cordova compatible)
+        window.exitApp = () => {
+            if (navigator.app) {
+                navigator.app.exitApp();
+            } else if (navigator.device) {
+                navigator.device.exitApp();
+            } else {
+                window.close();
+                // Fallback si corre en navegador
+                location.href = "about:blank";
+            }
+        };
+
+        function createKart(color) {
+            const group = new THREE.Group();
+            const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.3, 2.4), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+            chassis.position.y = 0.35; group.add(chassis);
+            const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.5, 1.4), new THREE.MeshStandardMaterial({ color: color }));
+            body.position.set(0, 0.6, 0.2); group.add(body);
+            const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.4, 1.2), new THREE.MeshStandardMaterial({ color: color }));
+            sideL.position.set(-0.75, 0.5, 0.2); group.add(sideL);
+            const sideR = sideL.clone(); sideR.position.x = 0.75; group.add(sideR);
+            const wingPoleL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.6, 0.1), new THREE.MeshStandardMaterial({ color: 0x111111 }));
+            wingPoleL.position.set(-0.4, 0.8, -0.8); group.add(wingPoleL);
+            const wingPoleR = wingPoleL.clone(); wingPoleR.position.x = 0.4; group.add(wingPoleR);
+            const wing = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.1, 0.6), new THREE.MeshStandardMaterial({ color: color }));
+            wing.position.set(0, 1.1, -0.8); group.add(wing);
+            const wheelGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.5, 16);
+            const wheelMat = new THREE.MeshStandardMaterial({ color: 0x000000 });
+            [[0.8, 0.4, 0.8], [-0.8, 0.4, 0.8], [0.8, 0.4, -0.8], [-0.8, 0.4, -0.8]].forEach(p => {
+                const w = new THREE.Mesh(wheelGeo, wheelMat);
+                w.rotation.z = Math.PI/2; w.position.set(...p); group.add(w);
+            });
+            return group;
+        }
+
+        function createPilot(type) {
+            const group = new THREE.Group();
+            if (type === 'penguin') {
+                const body = new THREE.Mesh(new THREE.SphereGeometry(0.45, 16, 16), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+                const belly = new THREE.Mesh(new THREE.SphereGeometry(0.35, 16, 16), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+                belly.scale.set(0.9, 1, 0.6); belly.position.set(0, -0.05, 0.25);
+                const beak = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.3, 8), new THREE.MeshStandardMaterial({ color: 0xffa500 }));
+                beak.rotation.x = Math.PI/2; beak.position.set(0, 0, 0.45);
+                group.add(body, belly, beak);
+            } else if (type === 'fox') {
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.45, 16, 16), new THREE.MeshStandardMaterial({ color: 0xf97316 }));
+                const muzzle = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 12), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+                muzzle.position.set(0, -0.1, 0.38); muzzle.scale.z = 1.4;
+                const earL = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.4, 4), new THREE.MeshStandardMaterial({ color: 0xf97316 }));
+                earL.position.set(-0.25, 0.45, 0); const earR = earL.clone(); earR.position.x = 0.25;
+                group.add(head, muzzle, earL, earR);
+            } else {
+                const shell = new THREE.Mesh(new THREE.SphereGeometry(0.5, 12, 12), new THREE.MeshStandardMaterial({ color: 0x14532d }));
+                shell.scale.set(1, 0.8, 1.1);
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 12), new THREE.MeshStandardMaterial({ color: 0x4ade80 }));
+                head.position.set(0, 0.15, 0.45);
+                group.add(shell, head);
+            }
+            group.position.y = 0.9;
+            return group;
+        }
+
+        function createFinishGate() {
+            const group = new THREE.Group();
+            const roadWidth = laneWidth * 4;
+            const line = new THREE.Mesh(new THREE.PlaneGeometry(roadWidth, 6), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide }));
+            line.rotation.x = Math.PI/2; line.position.y = 0.06; group.add(line);
+            [-1, 1].forEach(side => {
+                const pole = new THREE.Mesh(new THREE.BoxGeometry(1.2, 16, 1.2), new THREE.MeshStandardMaterial({ color: 0x1e293b }));
+                pole.position.set(side * (laneWidth*2.1), 8, 0); group.add(pole);
+            });
+            const banner = new THREE.Mesh(new THREE.BoxGeometry(roadWidth*1.1, 3, 0.5), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+            banner.position.y = 14; group.add(banner);
+            return group;
+        }
+
+        window.startGame = (type) => {
+            initAudio();
+            document.getElementById('menu').style.display = 'none';
+            document.getElementById('ui').style.display = 'block';
+            gameActive = true;
+            initScene(type);
+            playBGM();
+            
+            if(timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                if(!isPaused && gameActive) {
+                    elapsedTime += 100;
+                    const date = new Date(0);
+                    date.setMilliseconds(elapsedTime);
+                    document.getElementById('timer').innerText = date.toISOString().substr(14, 5);
+                    
+                    if (elapsedTime - lastMinuteMarked >= 60000) {
+                        lastMinuteMarked = elapsedTime;
+                        spawnFinishLine();
+                        playSound(1000, 'sine', 0.6, 0.2, 1500);
+                    }
+                }
+            }, 100);
+        };
+
+        function spawnFinishLine() {
+            const gate = createFinishGate();
+            gate.position.set(0, 0, -800);
+            scene.add(gate); finishLines.push(gate);
+        }
+
+        function initScene(type) {
+            scene = new THREE.Scene();
+            const cfg = biomes[type];
+            scene.background = new THREE.Color(cfg.sky);
+            scene.fog = new THREE.Fog(cfg.sky, 150, 950);
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.1, 2000);
+            camera.position.set(0, 7, 14); camera.lookAt(0, 1, -5);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.body.appendChild(renderer.domElement);
+            scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+            const sun = new THREE.DirectionalLight(0xffffff, 1);
+            sun.position.set(20, 60, 40); scene.add(sun);
+            const ground = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000), new THREE.MeshStandardMaterial({ color: cfg.ground }));
+            ground.rotation.x = -Math.PI/2; scene.add(ground);
+            const road = new THREE.Mesh(new THREE.PlaneGeometry(laneWidth*3.6, 6000), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+            road.rotation.x = -Math.PI/2; road.position.y = 0.01; scene.add(road);
+
+            for(let i=0; i<100; i++) {
+                [-0.5, 0.5].forEach(lx => {
+                    const line = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 10), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.2 }));
+                    line.rotation.x = -Math.PI/2; line.position.set(lx*laneWidth, 0.05, -i*40);
+                    scene.add(line); roadLines.push(line);
+                });
+                [-1, 1].forEach(side => {
+                    const k = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.2, 10), new THREE.MeshStandardMaterial({ color: i%2===0?0xffffff:0xff0000 }));
+                    k.position.set(side*(laneWidth*1.9), 0.1, -i*10); scene.add(k); kerbs.push(k);
+                });
+            }
+            for(let i=0; i<80; i++) {
+                const tree = new THREE.Group();
+                const trunk = new THREE.Mesh(new THREE.BoxGeometry(0.6, 2.5, 0.6), new THREE.MeshStandardMaterial({ color: 0x422006 }));
+                const leaves = new THREE.Mesh(new THREE.ConeGeometry(2.5, 6, 8), new THREE.MeshStandardMaterial({ color: cfg.tree }));
+                trunk.position.y = 1.25; leaves.position.y = 5.5; tree.add(trunk, leaves);
+                tree.position.set((Math.random()>0.5?1:-1)*(28+Math.random()*40), 0, -i*60);
+                scene.add(tree); scenery.push(tree);
+            }
+            for(let i=0; i<30; i++) {
+                const cloud = new THREE.Mesh(new THREE.SphereGeometry(6+Math.random()*8, 12, 12), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 }));
+                cloud.position.set((Math.random()-0.5)*800, 60+Math.random()*40, -Math.random()*2000);
+                scene.add(cloud); clouds.push(cloud);
+            }
+
+            player = new THREE.Group();
+            player.add(createKart(cfg.accent));
+            player.add(createPilot(type));
+            scene.add(player);
+            spawnObstacle();
+            lastTimestamp = performance.now();
+            requestAnimationFrame(animate);
+        }
+
+        function spawnObstacle() {
+            if(!gameActive) return;
+            const lane = Math.floor(Math.random()*3)-1;
+            const r = Math.random();
+            if (r < 0.45) {
+                const obs = createKart(0xef4444);
+                obs.position.set(lane*laneWidth, 0, -800); scene.add(obs); obstacles.push(obs);
+            } else {
+                const coin = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 0.2, 16), new THREE.MeshPhongMaterial({ color: 0xfacc15, shininess: 100 }));
+                coin.rotation.x = Math.PI/2; coin.position.set(lane*laneWidth, 1.4, -800);
+                scene.add(coin); coins.push(coin);
+            }
+            setTimeout(spawnObstacle, 1000 / SPEED_FACTOR); 
+        }
+
+        function triggerGameOver() {
+            gameActive = false;
+            if(bgmInterval) clearInterval(bgmInterval);
+            if(timerInterval) clearInterval(timerInterval);
+            const date = new Date(0);
+            date.setMilliseconds(elapsedTime);
+            const timeStr = date.toISOString().substr(14, 5);
+            const rank = Math.max(1, Math.floor(100 - (elapsedTime / 10000) - (score / 2)));
+            document.getElementById('final-rank').innerText = `#${rank}`;
+            document.getElementById('final-coins').innerText = score;
+            document.getElementById('final-time').innerText = timeStr;
+            document.getElementById('ui').style.display = 'none';
+            document.getElementById('game-over').style.display = 'flex';
+        }
+
+        function animate(timestamp) {
+            if(!gameActive) return;
+            requestAnimationFrame(animate);
+            if(isPaused) { lastTimestamp = timestamp; return; }
+            const deltaTime = timestamp - lastTimestamp;
+            lastTimestamp = timestamp;
+
+            player.position.x += (targetX - player.position.x) * 0.12;
+            player.rotation.y = (targetX - player.position.x) * 0.08;
+            player.rotation.z = (targetX - player.position.x) * 0.04;
+
+            const speed = SPEED_FACTOR;
+            roadLines.forEach(l => { l.position.z += speed*3; if(l.position.z > 60) l.position.z -= 4000; });
+            kerbs.forEach(k => { k.position.z += speed*3.2; if(k.position.z > 60) k.position.z -= 1000; });
+            scenery.forEach(s => { s.position.z += speed*3; if(s.position.z > 80) s.position.z -= 4800; });
+            clouds.forEach(c => { c.position.z += speed*0.2; if(c.position.z > 200) c.position.z = -1800; });
+            
+            finishLines.forEach((f, i) => { 
+                f.position.z += speed*3; 
+                if(f.position.z > 0 && f.position.z < 20 && !f.triggered) {
+                    f.triggered = true;
+                    magnetActive = true; 
+                    magnetTimeLeft = MAGNET_DURATION_MS; 
+                    document.getElementById('magnet-ui').classList.remove('hidden');
+                    playSound(900, 'square', 0.5, 0.1, 1200);
+                }
+                if(f.position.z > 150) { scene.remove(f); finishLines.splice(i,1); } 
+            });
+
+            obstacles.forEach((o, i) => {
+                o.position.z += speed*3;
+                if(Math.abs(o.position.z - player.position.z) < 2.5 && Math.abs(o.position.x - player.position.x) < 1.6) {
+                    playSound(180, 'sawtooth', 0.8, 0.3, 30);
+                    triggerGameOver();
+                }
+                if(o.position.z > 60) { scene.remove(o); obstacles.splice(i,1); }
+            });
+
+            coins.forEach((c, i) => {
+                c.position.z += speed*3; c.rotation.y += 0.08;
+                if(magnetActive && player.position.distanceTo(c.position) < 30) c.position.lerp(player.position, 0.18);
+                if(Math.abs(c.position.z - player.position.z) < 2.5 && Math.abs(c.position.x - player.position.x) < 2) {
+                    score++; document.getElementById('score').innerText = score;
+                    playSound(1300, 'sine', 0.1, 0.06, 1900);
+                    scene.remove(c); coins.splice(i,1);
+                }
+                if(c.position.z > 60) { scene.remove(c); coins.splice(i,1); }
+            });
+
+            if(magnetActive) {
+                magnetTimeLeft -= deltaTime;
+                const progress = Math.max(0, magnetTimeLeft / MAGNET_DURATION_MS);
+                document.getElementById('magnet-bar').style.width = (progress * 100) + '%';
+                if(magnetTimeLeft <= 0) { 
+                    magnetActive = false; 
+                    document.getElementById('magnet-ui').classList.add('hidden'); 
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.togglePause = () => { isPaused = !isPaused; document.getElementById('pause-menu').style.display = isPaused?'flex':'none'; };
+        
+        window.addEventListener('touchstart', e => {
+            if(e.touches[0].clientX < window.innerWidth/2) currentLane = Math.max(-1, currentLane-1);
+            else currentLane = Math.min(1, currentLane+1);
+            targetX = currentLane * laneWidth;
+        });
+        
+        window.addEventListener('keydown', e => {
+            if(e.key === "ArrowLeft") { currentLane = Math.max(-1, currentLane-1); targetX = currentLane*laneWidth; }
+            if(e.key === "ArrowRight") { currentLane = Math.min(1, currentLane+1); targetX = currentLane*laneWidth; }
+        });
+        
+        window.addEventListener('resize', () => { 
+            if(camera && renderer) {
+                camera.aspect = window.innerWidth / window.innerHeight; 
+                camera.updateProjectionMatrix(); 
+                renderer.setSize(window.innerWidth, window.innerHeight); 
+            }
+        });
+    </script>
+</body>
+</html>
