@@ -24,7 +24,6 @@
 <body>
 
     <div id="ui">
-        <!-- Contador de Monedas e Imán -->
         <div class="absolute top-5 left-5">
             <div class="text-4xl font-black drop-shadow-2xl italic">🪙 <span id="score">0</span></div>
             <div id="magnet-ui" class="hidden mt-3 bg-cyan-500/30 px-4 py-2 rounded-xl border border-cyan-400/50 backdrop-blur-md">
@@ -35,12 +34,10 @@
             </div>
         </div>
         
-        <!-- Reloj de Tiempo -->
         <div class="absolute top-5 left-1/2 -translate-x-1/2 text-2xl font-mono font-black bg-slate-900/80 px-6 py-2 rounded-full border-b-2 border-white/20 backdrop-blur-md">
             <span id="timer">00:00</span>
         </div>
 
-        <!-- Botón de Pausa -->
         <div class="absolute top-5 right-5 ui-element">
             <button class="bg-white/10 p-5 rounded-2xl border border-white/20 hover:bg-white/20 transition-colors" onclick="togglePause()">
                 <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="white"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
@@ -94,7 +91,7 @@
         </div>
     </div>
 
-    <script type="module">
+    <script>
         let audioCtx, bgmInterval, bgmStep = 0;
 
         function initAudio() {
@@ -135,7 +132,7 @@
         let scene, camera, renderer, player;
         let laneWidth = 4.5, currentLane = 0, targetX = 0;
         let gameActive = false, isPaused = false, score = 0, elapsedTime = 0, lastMinuteMarked = 0;
-        let obstacles = [], coins = [], scenery = [], roadLines = [], clouds = [], kerbs = [], finishLines = [];
+        let obstacles = [], coins = [], scenery = [], roadLines = [], clouds = [], kerbs = [], finishLines = [], confetti = [];
         
         let magnetActive = false;
         let magnetTimeLeft = 0;
@@ -151,17 +148,9 @@
             turtle: { sky: 0xdcfce7, ground: 0x14532d, tree: 0x22c55e, accent: 0x22c55e }
         };
 
-        // Función para salir de la App (Cordova compatible)
         window.exitApp = () => {
-            if (navigator.app) {
-                navigator.app.exitApp();
-            } else if (navigator.device) {
-                navigator.device.exitApp();
-            } else {
-                window.close();
-                // Fallback si corre en navegador
-                location.href = "about:blank";
-            }
+            if (navigator.app) navigator.app.exitApp();
+            else window.close();
         };
 
         function createKart(color) {
@@ -228,6 +217,28 @@
             return group;
         }
 
+        function createConfetiBurst() {
+            const colors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff];
+            for (let i = 0; i < 60; i++) {
+                const geometry = new THREE.PlaneGeometry(0.3, 0.3);
+                const material = new THREE.MeshBasicMaterial({ color: colors[Math.floor(Math.random() * colors.length)], side: THREE.DoubleSide });
+                const piece = new THREE.Mesh(geometry, material);
+                
+                // Posicionar cerca de la línea de meta visualmente
+                piece.position.set((Math.random() - 0.5) * 20, 10 + Math.random() * 10, -5);
+                
+                // Velocidades aleatorias
+                piece.userData = {
+                    velocity: new THREE.Vector3((Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.5, (Math.random() * 0.5) + 0.2),
+                    rotation: new THREE.Vector3(Math.random() * 0.2, Math.random() * 0.2, Math.random() * 0.2),
+                    life: 1.0
+                };
+                
+                scene.add(piece);
+                confetti.push(piece);
+            }
+        }
+
         window.startGame = (type) => {
             initAudio();
             document.getElementById('menu').style.display = 'none';
@@ -243,7 +254,6 @@
                     const date = new Date(0);
                     date.setMilliseconds(elapsedTime);
                     document.getElementById('timer').innerText = date.toISOString().substr(14, 5);
-                    
                     if (elapsedTime - lastMinuteMarked >= 60000) {
                         lastMinuteMarked = elapsedTime;
                         spawnFinishLine();
@@ -367,9 +377,25 @@
                     magnetTimeLeft = MAGNET_DURATION_MS; 
                     document.getElementById('magnet-ui').classList.remove('hidden');
                     playSound(900, 'square', 0.5, 0.1, 1200);
+                    createConfetiBurst(); // Lanzar confeti al pasar la meta
                 }
                 if(f.position.z > 150) { scene.remove(f); finishLines.splice(i,1); } 
             });
+
+            // Animación del confeti
+            for (let i = confetti.length - 1; i >= 0; i--) {
+                const piece = confetti[i];
+                piece.position.add(piece.userData.velocity);
+                piece.rotation.x += piece.userData.rotation.x;
+                piece.rotation.y += piece.userData.rotation.y;
+                piece.userData.velocity.y -= 0.01; // Gravedad
+                piece.userData.life -= 0.01;
+                piece.material.opacity = piece.userData.life;
+                if (piece.userData.life <= 0) {
+                    scene.remove(piece);
+                    confetti.splice(i, 1);
+                }
+            }
 
             obstacles.forEach((o, i) => {
                 o.position.z += speed*3;
