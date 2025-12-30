@@ -173,6 +173,8 @@
                 const w = new THREE.Mesh(wheelGeo, wheelMat);
                 w.rotation.z = Math.PI/2; w.position.set(...p); group.add(w);
             });
+            // GIRO DE 180 GRADOS PARA MIRAR AL HORIZONTE
+            group.rotation.y = Math.PI; 
             return group;
         }
 
@@ -223,17 +225,12 @@
                 const geometry = new THREE.PlaneGeometry(0.3, 0.3);
                 const material = new THREE.MeshBasicMaterial({ color: colors[Math.floor(Math.random() * colors.length)], side: THREE.DoubleSide });
                 const piece = new THREE.Mesh(geometry, material);
-                
-                // Posicionar cerca de la línea de meta visualmente
                 piece.position.set((Math.random() - 0.5) * 20, 10 + Math.random() * 10, -5);
-                
-                // Velocidades aleatorias
                 piece.userData = {
                     velocity: new THREE.Vector3((Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.5, (Math.random() * 0.5) + 0.2),
                     rotation: new THREE.Vector3(Math.random() * 0.2, Math.random() * 0.2, Math.random() * 0.2),
                     life: 1.0
                 };
-                
                 scene.add(piece);
                 confetti.push(piece);
             }
@@ -377,18 +374,17 @@
                     magnetTimeLeft = MAGNET_DURATION_MS; 
                     document.getElementById('magnet-ui').classList.remove('hidden');
                     playSound(900, 'square', 0.5, 0.1, 1200);
-                    createConfetiBurst(); // Lanzar confeti al pasar la meta
+                    createConfetiBurst();
                 }
                 if(f.position.z > 150) { scene.remove(f); finishLines.splice(i,1); } 
             });
 
-            // Animación del confeti
             for (let i = confetti.length - 1; i >= 0; i--) {
                 const piece = confetti[i];
                 piece.position.add(piece.userData.velocity);
                 piece.rotation.x += piece.userData.rotation.x;
                 piece.rotation.y += piece.userData.rotation.y;
-                piece.userData.velocity.y -= 0.01; // Gravedad
+                piece.userData.velocity.y -= 0.01;
                 piece.userData.life -= 0.01;
                 piece.material.opacity = piece.userData.life;
                 if (piece.userData.life <= 0) {
@@ -450,6 +446,9 @@
                 renderer.setSize(window.innerWidth, window.innerHeight); 
             }
         });
+
+        window.onload = function() {
+        };
     </script>
 </body>
 </html>
