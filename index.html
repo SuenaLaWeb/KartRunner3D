@@ -23,7 +23,7 @@
         .btn-fox { background: #f97316; color: #fff; }
         .btn-turtle { background: #22c55e; color: #fff; }
         
-        #game-over, #pause-menu { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(15px); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 200; color: white; }
+        #game-over, #pause-menu, #victory { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(15px); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 200; color: white; }
         .stat-row { display: flex; justify-content: space-between; width: 300px; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.1); }
 
         /* SEMÁFORO ESTILO NASCAR */
@@ -50,26 +50,22 @@
             transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             pointer-events: none;
         }
+
+        /* Botones para móviles */
+        #controls { position: fixed; bottom: 20px; left: 0; right: 0; display: flex; justify-content: space-between; padding: 0 20px; z-index: 20; }
+        #gear-btn { background: #ffcc00; color: #000; padding: 20px; border-radius: 50%; font-weight: bold; }
+        #left-btn, #right-btn { background: #00ff00; color: #000; padding: 20px; border-radius: 50%; font-weight: bold; }
     </style>
 </head>
 <body>
 
     <div id="ui">
-        <div class="absolute top-5 left-5">
-            <div class="text-4xl font-black drop-shadow-2xl italic">🪙 <span id="score">0</span></div>
-            <div id="magnet-ui" class="hidden mt-3 bg-cyan-500/30 px-4 py-2 rounded-xl border border-cyan-400/50 backdrop-blur-md">
-                <span class="text-xs font-black uppercase text-cyan-200 tracking-tighter">🧲 IMÁN ACTIVADO</span>
-                <div class="w-32 h-2 bg-slate-800 mt-2 rounded-full overflow-hidden">
-                    <div id="magnet-bar" class="h-full bg-cyan-400 w-full"></div>
-                </div>
-            </div>
-        </div>
-        <div class="absolute top-5 left-1/2 -translate-x-1/2 text-2xl font-mono font-black bg-slate-900/80 px-6 py-2 rounded-full border-b-2 border-white/20 backdrop-blur-md">
-            <span id="timer">00:00</span>
-        </div>
-        <div class="absolute top-5 right-5 ui-element">
+        <div class="absolute top-5 right-5 ui-element flex space-x-4">
             <button class="bg-white/10 p-5 rounded-2xl border border-white/20 active:bg-white/30" onclick="togglePause()">
                 <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="white"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+            </button>
+            <button class="bg-white/10 p-5 rounded-2xl border border-white/20 active:bg-white/30" onclick="toggleBGM()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="white"><path d="M3 9v6h4l5 5v-13l-5 5h-4zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
             </button>
         </div>
     </div>
@@ -124,6 +120,36 @@
         <button class="btn bg-slate-800 text-white text-lg px-20 mt-4" onclick="exitApp()">SALIR</button>
     </div>
 
+    <div id="victory">
+        <h2 class="text-6xl font-black mb-4 text-green-500 italic tracking-tighter animate-bounce">¡VICTORIA!</h2>
+        <div id="victory-character" class="text-9xl mb-4 animate-spin"></div>
+        <div class="text-4xl mb-4">¡Felicidades! Ganaste la carrera 🏆</div>
+        <div class="bg-white/5 p-8 rounded-3xl border border-white/10 backdrop-blur-sm mb-8">
+            <div class="stat-row">
+                <span class="text-white/60 uppercase text-sm font-bold">Posición</span>
+                <span id="victory-rank" class="text-2xl font-black text-yellow-400">#1</span>
+            </div>
+            <div class="stat-row">
+                <span class="text-white/60 uppercase text-sm font-bold">Monedas</span>
+                <span id="victory-coins" class="text-2xl font-black text-white">0</span>
+            </div>
+            <div class="stat-row">
+                <span class="text-white/60 uppercase text-sm font-bold">Tiempo</span>
+                <span id="victory-time" class="text-2xl font-black text-white">00:00</span>
+            </div>
+        </div>
+        <button class="btn bg-white text-black text-2xl px-20" onclick="location.reload()">REINTENTAR</button>
+        <button class="btn bg-slate-800 text-white text-lg px-20 mt-4" onclick="exitApp()">SALIR</button>
+    </div>
+
+    <div id="controls">
+        <button id="gear-btn" class="text-xl" onclick="toggleGear()">LOW/HI</button>
+        <div>
+            <button id="left-btn" class="mr-4 text-xl" onclick="moveLeft()">←</button>
+            <button id="right-btn" class="text-xl" onclick="moveRight()">→</button>
+        </div>
+    </div>
+
     <script>
         // --- MOTOR DE AUDIO ---
         let audioCtx, bgmInterval, bgmStep = 0;
@@ -170,20 +196,52 @@
         }
 
         function playBGM() {
-            const bass = [110, 110, 130, 110, 146, 110, 130, 164];
-            const lead = [440, 0, 440, 523, 0, 587, 0, 659, 440, 523, 659, 783, 0, 587, 0, 523];
+            const bass = [130, 130, 146, 130, 174, 130, 146, 196];
+            const lead = [523, 0, 523, 659, 0, 784, 0, 880, 523, 659, 880, 1046, 0, 784, 0, 659];
             if(bgmInterval) clearInterval(bgmInterval);
             bgmInterval = setInterval(() => {
                 if (!isPaused && gameActive && !isStarting) {
-                    playSound(55, 'sine', 0.1, 0.15); 
-                    playSound(bass[bgmStep % bass.length], 'triangle', 0.15, 0.08);
+                    playSound(65, 'sine', 0.1, 0.15); 
+                    playSound(bass[bgmStep % bass.length], 'triangle', 0.12, 0.1);
                     if (bgmStep % 2 === 0) {
                         const note = lead[(bgmStep / 2) % lead.length];
-                        if (note > 0) playSound(note, 'square', 0.2, 0.04);
+                        if (note > 0) playSound(note, 'square', 0.15, 0.05);
                     }
                     bgmStep++;
                 }
-            }, 140);
+            }, 120);
+        }
+
+        // Fanfarria menú (chiptune retro)
+        function playMenuFanfare() {
+            initAudio();
+            const notes = [440, 554, 659, 880, 659, 554, 440, 880];
+            notes.forEach((f, i) => setTimeout(() => playSound(f, 'square', 0.2, 0.15), i * 200));
+        }
+
+        // Sonido cambio marcha
+        function playGearShift(high) {
+            playSound(high ? 800 : 400, 'sawtooth', 0.3, 0.2);
+        }
+
+        // Sonido motor constante
+        let engineInterval;
+        function playEngine(high) {
+            if (engineInterval) clearInterval(engineInterval);
+            const freq = high ? 200 : 100;
+            const step = high ? 50 : 30;
+            engineInterval = setInterval(() => playSound(freq + Math.random()*step, 'triangle', 0.05, 0.08), 100);
+        }
+
+        // Sonido de victoria
+        function playVictoryFanfare() {
+            const notes = [523, 659, 784, 1047, 784, 659, 523, 1047];
+            notes.forEach((f, i) => setTimeout(() => playSound(f, 'square', 0.3, 0.2), i * 300));
+        }
+
+        // Sonido de adelantamiento (como motor adelantando)
+        function playOvertake() {
+            playSound(200, 'sawtooth', 0.4, 0.2, 400);
         }
 
         // --- VARIABLES DEL JUEGO ---
@@ -191,17 +249,23 @@
         let laneWidth = 4.5, currentLane = 0, targetX = 0;
         let gameActive = false, isPaused = false, isStarting = false;
         let score = 0, elapsedTime = 0, lastMinuteMarked = 0;
-        let obstacles = [], coins = [], scenery = [], roadLines = [], clouds = [], kerbs = [], finishLines = [], confetti = [];
-        let magnetActive = false, magnetTimeLeft = 0;
-        const MAGNET_DURATION_MS = 15000; 
+        let obstacles = [], scenery = [], roadLines = [], clouds = [], kerbs = [], finishLines = [], confetti = [];
         let lastTimestamp = 0;
         let timerInterval = null;
-        const SPEED_FACTOR = 1.57;
+        let SPEED_FACTOR = 1.57;
+        let isHighGear = false;
+        let currentType = '';
 
         const biomes = {
             penguin: { sky: 0xbae6fd, ground: 0xf8fafc, tree: 0xffffff, accent: 0x0ea5e9 },
             fox: { sky: 0xfed7aa, ground: 0x9a3412, tree: 0xf97316, accent: 0xf97316 },
             turtle: { sky: 0xdcfce7, ground: 0x14532d, tree: 0x22c55e, accent: 0x22c55e }
+        };
+
+        const characters = {
+            penguin: '🐧',
+            fox: '🦊',
+            turtle: '🐢'
         };
 
         window.exitApp = () => {
@@ -211,6 +275,7 @@
 
         // --- SECUENCIA DE INICIO ---
         async function handleRaceStart(type) {
+            currentType = type;
             initAudio();
             document.getElementById('menu').style.display = 'none';
             document.getElementById('ui').style.display = 'block';
@@ -274,19 +339,17 @@
             sideL.position.set(-0.75, 0.5, -0.2); group.add(sideL);
             const sideR = sideL.clone(); sideR.position.x = 0.75; group.add(sideR);
             const wingPoleL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.6, 0.1), new THREE.MeshStandardMaterial({ color: 0x111111 }));
-            wingPoleL.position.set(-0.4, 0.8, 0.8); group.add(wingPoleL);
+            wingPoleL.position.set(-0.4, 0.8, isObstacle ? -0.8 : 0.8); group.add(wingPoleL);
             const wingPoleR = wingPoleL.clone(); wingPoleR.position.x = 0.4; group.add(wingPoleR);
             const wing = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.1, 0.6), new THREE.MeshStandardMaterial({ color: color }));
-            wing.position.set(0, 1.1, 0.8); group.add(wing);
+            wing.position.set(0, 1.1, isObstacle ? -0.8 : 0.8); group.add(wing);
             const wheelGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.5, 16);
             const wheelMat = new THREE.MeshStandardMaterial({ color: 0x000000 });
-            [[0.8, 0.4, -0.8], [-0.8, 0.4, -0.8], [0.8, 0.4, 0.8], [-0.8, 0.4, 0.8]].forEach(p => {
+            const wheelPositions = isObstacle ? [[0.8, 0.4, 0.8], [-0.8, 0.4, 0.8], [0.8, 0.4, -0.8], [-0.8, 0.4, -0.8]] : [[0.8, 0.4, -0.8], [-0.8, 0.4, -0.8], [0.8, 0.4, 0.8], [-0.8, 0.4, 0.8]];
+            wheelPositions.forEach(p => {
                 const w = new THREE.Mesh(wheelGeo, wheelMat);
                 w.rotation.z = Math.PI/2; w.position.set(...p); group.add(w);
             });
-            if (isObstacle) {
-                group.rotation.y = Math.PI; // Obstáculos girados 180 grados para mirar hacia el player (+Z)
-            }
             return group;
         }
 
@@ -314,6 +377,14 @@
                 group.add(shell, head);
             }
             group.position.y = 0.9;
+            return group;
+        }
+
+        function createGenericPilot() {
+            const group = new THREE.Group();
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 8), new THREE.MeshStandardMaterial({ color: 0x888888 }));
+            head.position.set(0, 0.9, -0.2);
+            group.add(head);
             return group;
         }
 
@@ -362,10 +433,12 @@
                     const date = new Date(0);
                     date.setMilliseconds(elapsedTime);
                     document.getElementById('timer').innerText = date.toISOString().substr(14, 5);
-                    if (elapsedTime - lastMinuteMarked >= 60000) {
-                        lastMinuteMarked = elapsedTime;
+                    if (elapsedTime === 50000) {
                         spawnFinishLine();
-                        playSound(1000, 'sine', 0.6, 0.2, 1500);
+                    }
+                    if (elapsedTime === 110000) {
+                        spawnFinishLine();
+                        victoryRace();
                     }
                 }
             }, 100);
@@ -427,16 +500,10 @@
         function spawnObstacle() {
             if(!gameActive || isStarting) return;
             const lane = Math.floor(Math.random()*3)-1;
-            const r = Math.random();
-            if (r < 0.45) {
-                const obs = createKart(0xef4444, true);
-                obs.position.set(lane*laneWidth, 0, -800); 
-                scene.add(obs); obstacles.push(obs);
-            } else {
-                const coin = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 0.2, 16), new THREE.MeshPhongMaterial({ color: 0xfacc15, shininess: 100 }));
-                coin.rotation.x = Math.PI/2; coin.position.set(lane*laneWidth, 1.4, -800);
-                scene.add(coin); coins.push(coin);
-            }
+            const obs = createKart(0xef4444, true);
+            obs.add(createGenericPilot());
+            obs.position.set(lane*laneWidth, 0, -800); 
+            scene.add(obs); obstacles.push(obs);
             setTimeout(spawnObstacle, 1000 / SPEED_FACTOR); 
         }
 
@@ -444,6 +511,7 @@
             gameActive = false;
             if(bgmInterval) clearInterval(bgmInterval);
             if(timerInterval) clearInterval(timerInterval);
+            clearInterval(engineInterval);
             const date = new Date(0);
             date.setMilliseconds(elapsedTime);
             document.getElementById('final-rank').innerText = `#${Math.max(1, Math.floor(100 - (elapsedTime / 10000) - (score / 2)))}`;
@@ -471,6 +539,7 @@
                 return;
             }
 
+            SPEED_FACTOR = isHighGear ? 3 : 1.57;
             const speed = SPEED_FACTOR;
             roadLines.forEach(l => { l.position.z += speed*3; if(l.position.z > 60) l.position.z -= 4000; });
             kerbs.forEach(k => { k.position.z += speed*3.2; if(k.position.z > 60) k.position.z -= 1000; });
@@ -481,9 +550,6 @@
                 f.position.z += speed*3; 
                 if(f.position.z > 0 && f.position.z < 20 && !f.triggered) {
                     f.triggered = true;
-                    magnetActive = true; 
-                    magnetTimeLeft = MAGNET_DURATION_MS; 
-                    document.getElementById('magnet-ui').classList.remove('hidden');
                     playSound(900, 'square', 0.5, 0.1, 1200);
                     createConfetiBurst();
                 }
@@ -510,49 +576,50 @@
                     playSound(180, 'sawtooth', 0.8, 0.3, 30);
                     triggerGameOver();
                 }
+                if(o.position.z > 0 && !o.passed) {
+                    o.passed = true;
+                    playOvertake();
+                }
                 if(o.position.z > 60) { scene.remove(o); obstacles.splice(i,1); }
             });
-
-            coins.forEach((c, i) => {
-                c.position.z += speed*3; c.rotation.y += 0.08;
-                if(magnetActive && player.position.distanceTo(c.position) < 30) c.position.lerp(player.position, 0.18);
-                if(Math.abs(c.position.z - player.position.z) < 2.5 && Math.abs(c.position.x - player.position.x) < 2) {
-                    score++; document.getElementById('score').innerText = score;
-                    playSound(1300, 'sine', 0.1, 0.06, 1900);
-                    scene.remove(c); coins.splice(i,1);
-                }
-                if(c.position.z > 60) { scene.remove(c); coins.splice(i,1); }
-            });
-
-            if(magnetActive) {
-                magnetTimeLeft -= deltaTime;
-                document.getElementById('magnet-bar').style.width = (Math.max(0, magnetTimeLeft/MAGNET_DURATION_MS)*100) + '%';
-                if(magnetTimeLeft <= 0) { 
-                    magnetActive = false; 
-                    document.getElementById('magnet-ui').classList.add('hidden'); 
-                }
-            }
 
             renderer.render(scene, camera);
         }
 
         window.togglePause = () => { isPaused = !isPaused; document.getElementById('pause-menu').style.display = isPaused?'flex':'none'; };
         
-        window.addEventListener('touchstart', e => {
+        function moveLeft() {
             if(gameActive && !isPaused && !isStarting) {
-                if(e.touches[0].clientX < window.innerWidth/2) currentLane = Math.max(-1, currentLane-1);
-                else currentLane = Math.min(1, currentLane+1);
+                currentLane = Math.max(-1, currentLane-1);
                 targetX = currentLane * laneWidth;
             }
-        });
-        
-        window.addEventListener('keydown', e => {
+        }
+
+        function moveRight() {
             if(gameActive && !isPaused && !isStarting) {
-                if(e.key === "ArrowLeft") { currentLane = Math.max(-1, currentLane-1); targetX = currentLane*laneWidth; }
-                if(e.key === "ArrowRight") { currentLane = Math.min(1, currentLane+1); targetX = currentLane*laneWidth; }
+                currentLane = Math.min(1, currentLane+1);
+                targetX = currentLane * laneWidth;
             }
-        });
-        
+        }
+
+        function toggleGear() {
+            if(gameActive && !isPaused && !isStarting) {
+                isHighGear = !isHighGear;
+                playGearShift(isHighGear);
+                playEngine(isHighGear);
+                document.getElementById('gear-btn').innerText = isHighGear ? 'HI' : 'LOW';
+            }
+        }
+
+        function toggleBGM() {
+            if (bgmInterval) {
+                clearInterval(bgmInterval);
+                bgmInterval = null;
+            } else {
+                playBGM();
+            }
+        }
+
         window.addEventListener('resize', () => { 
             if(camera && renderer) {
                 camera.aspect = window.innerWidth / window.innerHeight; 
@@ -560,6 +627,9 @@
                 renderer.setSize(window.innerWidth, window.innerHeight); 
             }
         });
+
+        // Iniciar fanfarria al cargar
+        window.addEventListener('load', playMenuFanfare);
     </script>
 </body>
 </html>
