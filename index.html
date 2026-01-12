@@ -59,10 +59,16 @@
         /* Forzar landscape en móviles */
         @media (orientation: portrait) {
             body {
-                transform: rotate(90deg);
-                width: 100vh;
-                height: 100vw;
-                transform-origin: top left;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 20px;
+                color: white;
+                text-align: center;
+            }
+            #ui, #menu, #pause-menu, #game-over, #victory, #controls, canvas { display: none; }
+            body::before {
+                content: "Por favor, gira tu dispositivo a modo horizontal para jugar.";
             }
         }
     </style>
@@ -261,7 +267,8 @@
         let scene, camera, renderer, player;
         let laneWidth = 4.5, currentLane = 0, targetX = 0;
         let gameActive = false, isPaused = false, isStarting = false;
-        let score = 0, elapsedTime = 0, lastMinuteMarked = 0;
+        let remainingTime = 40;
+        let lap = 1;
         let obstacles = [], scenery = [], roadLines = [], clouds = [], kerbs = [], finishLines = [], confetti = [];
         let lastTimestamp = 0;
         let timerInterval = null;
