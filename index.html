@@ -71,10 +71,7 @@
 
     <div id="ui">
         <div class="absolute top-5 left-5">
-            <div id="timer" class="text-2xl font-black drop-shadow-2xl italic">40</div>
-        </div>
-        <div class="absolute top-5 left-1/2 -translate-x-1/2 text-2xl font-mono font-black bg-slate-900/80 px-6 py-2 rounded-full border-b-2 border-white/20 backdrop-blur-md">
-            <span id="speed">60 MPH</span>
+            <div id="speed" class="text-4xl font-black drop-shadow-2xl italic">0 MPH</div>
         </div>
         <div class="absolute top-5 right-5 ui-element flex space-x-4">
             <button class="bg-white/10 p-5 rounded-2xl border border-white/20 active:bg-white/30" onclick="togglePause()">
@@ -117,7 +114,7 @@
     </div>
 
     <div id="game-over">
-        <h2 class="text-6xl font-black mb-4 text-red-500 italic tracking-tighter">¡GAME OVER!</h2>
+        <h2 class="text-6xl font-black mb-4 text-red-500 italic tracking-tighter">¡COLISIÓN!</h2>
         <div class="bg-white/5 p-8 rounded-3xl border border-white/10 backdrop-blur-sm mb-8">
             <div class="stat-row">
                 <span class="text-white/60 uppercase text-sm font-bold">Posición</span>
@@ -264,8 +261,7 @@
         let scene, camera, renderer, player;
         let laneWidth = 4.5, currentLane = 0, targetX = 0;
         let gameActive = false, isPaused = false, isStarting = false;
-        let remainingTime = 40;
-        let lap = 1; 
+        let score = 0, elapsedTime = 0, lastMinuteMarked = 0;
         let obstacles = [], scenery = [], roadLines = [], clouds = [], kerbs = [], finishLines = [], confetti = [];
         let lastTimestamp = 0;
         let timerInterval = null;
@@ -343,43 +339,6 @@
                 go.style.opacity = '0';
                 go.style.transform = 'scale(0.5)';
             }, 1200);
-        }
-
-        // --- TIMER LOGIC ---
-        function startTimer() {
-            if(timerInterval) clearInterval(timerInterval);
-            remainingTime = 40;
-            lap = 1;
-            updateTimerDisplay();
-            timerInterval = setInterval(() => {
-                if (!isPaused && gameActive && !isStarting) {
-                    remainingTime -= 0.1;
-                    updateTimerDisplay();
-                    if (remainingTime <= 0) {
-                        triggerGameOver();
-                    }
-                }
-            }, 100);
-        }
-
-        function updateTimerDisplay() {
-            document.getElementById('timer').innerText = Math.ceil(remainingTime);
-            if (remainingTime <= 10) {
-                document.getElementById('timer').style.color = 'red';
-            } else {
-                document.getElementById('timer').style.color = 'white';
-            }
-        }
-
-        function onCrossFinishLine() {
-            createConfetiBurst();
-            if (lap === 1) {
-                lap = 2;
-                remainingTime = 40;
-                updateTimerDisplay();
-            } else if (lap === 2) {
-                victoryRace();
-            }
         }
 
         // --- MOTOR GRÁFICO Y LÓGICA ---
@@ -483,10 +442,16 @@
             if(timerInterval) clearInterval(timerInterval);
             timerInterval = setInterval(() => {
                 if(!isPaused && gameActive && !isStarting) {
-                    remainingTime -= 0.1;
-                    updateTimerDisplay();
-                    if (remainingTime <= 0) {
-                        triggerGameOver();
+                    elapsedTime += 100;
+                    const date = new Date(0);
+                    date.setMilliseconds(elapsedTime);
+                    document.getElementById('timer').innerText = date.toISOString().substr(14, 5);
+                    if (elapsedTime === 50000) {
+                        spawnFinishLine();
+                    }
+                    if (elapsedTime === 110000) {
+                        spawnFinishLine();
+                        victoryRace();
                     }
                 }
             }, 100);
@@ -537,7 +502,7 @@
             }
 
             player = new THREE.Group();
-            player.add(createKart(biomes[type].accent));
+            player.add(createKart(cfg.accent));
             player.add(createPilot(type));
             scene.add(player);
             
@@ -561,15 +526,14 @@
             if(timerInterval) clearInterval(timerInterval);
             clearInterval(engineInterval);
             const date = new Date(0);
-            date.setMilliseconds(0); // No usamos tiempo
-            document.getElementById('final-rank').innerText = `#${Math.max(1, Math.floor(100 - (0 / 10000) - (0 / 2)))}`;
-            document.getElementById('final-coins').innerText = 0;
-            document.getElementById('final-time').innerText = '00:00';
+            date.setMilliseconds(elapsedTime);
+            document.getElementById('final-rank').innerText = `#${Math.max(1, Math.floor(100 - (elapsedTime / 10000) - (score / 2)))}`;
+            document.getElementById('final-coins').innerText = score;
+            document.getElementById('final-time').innerText = date.toISOString().substr(14, 5);
             document.getElementById('ui').style.display = 'none';
             document.getElementById('game-over').style.display = 'flex';
         }
 
-        // --- BUCLE PRINCIPAL ---
         function animate(timestamp) {
             if(!gameActive) return;
             requestAnimationFrame(animate);
@@ -579,6 +543,7 @@
 
             player.position.x += (targetX - player.position.x) * 0.12;
             
+            // GIRO: Ajustado para que el giro (inclinación) sea coherente con mirar al horizonte (Math.PI)
             player.rotation.y = (targetX - player.position.x) * 0.08; 
             player.rotation.z = (targetX - player.position.x) * 0.04;
 
@@ -601,7 +566,6 @@
                     f.triggered = true;
                     playSound(900, 'square', 0.5, 0.1, 1200);
                     createConfetiBurst();
-                    onCrossFinishLine();
                 }
                 if(f.position.z > 150) { scene.remove(f); finishLines.splice(i,1); } 
             });
@@ -624,11 +588,7 @@
                 o.position.z += speed*3;
                 if(Math.abs(o.position.z - player.position.z) < 2.5 && Math.abs(o.position.x - player.position.x) < 1.6) {
                     playSound(180, 'sawtooth', 0.8, 0.3, 30);
-                    remainingTime -= 3;
-                    updateTimerDisplay();
-                    if (remainingTime <= 0) {
-                        triggerGameOver();
-                    }
+                    triggerGameOver();
                 }
                 if(o.position.z > 0 && !o.passed) {
                     o.passed = true;
