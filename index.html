@@ -68,10 +68,9 @@
         }
         #left-btn, #right-btn { background: #00ff00; }
 
-        /* Botones de pausa y música una línea debajo del score */
         #ui-buttons {
             position: absolute;
-            top: 8rem; /* una línea por debajo del score (ajustable) */
+            top: 8rem;
             left: 0;
             right: 0;
             display: flex;
@@ -85,7 +84,7 @@
 
     <div id="ui">
         <div class="absolute top-4 left-4 text-5xl font-black drop-shadow-2xl">
-            <span id="timer">00:00</span> <!-- invisible -->
+            <span id="timer">00:00</span>
         </div>
         <div class="absolute top-4 left-1/2 -translate-x-1/2 w-11/12 max-w-xs text-center">
             <div class="bg-slate-900/80 px-5 py-2 rounded-t-xl border-b border-white/20 text-xl font-black">
@@ -96,7 +95,6 @@
             </div>
         </div>
 
-        <!-- Botones de pausa y música debajo del score -->
         <div id="ui-buttons" class="ui-element">
             <button class="bg-white/10 p-4 rounded-xl border border-white/20 active:bg-white/30" onclick="toggleBGM()">
                 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="white"><path d="M3 9v6h4l5 5v-13l-5 5h-4zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
@@ -184,7 +182,7 @@
     </div>
 
     <script>
-        // --- MOTOR DE AUDIO --- (sin cambios)
+        // --- MOTOR DE AUDIO ---
         let audioCtx, bgmInterval, bgmStep = 0;
 
         function initAudio() {
@@ -430,19 +428,6 @@
             return group;
         }
 
-        function createRedPoles() {
-            const group = new THREE.Group();
-            [-1.5, 1.5].forEach(x => {
-                const pole = new THREE.Mesh(
-                    new THREE.CylinderGeometry(0.15, 0.15, 3, 8),
-                    new THREE.MeshStandardMaterial({ color: 0xff0000 })
-                );
-                pole.position.set(x * laneWidth, 1.5, -800);
-                group.add(pole);
-            });
-            return group;
-        }
-
         function createConfetiBurst() {
             const colors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff];
             for (let i = 0; i < 60; i++) {
@@ -466,12 +451,6 @@
             scene.add(gate); finishLines.push(gate);
         }
 
-        function spawnHalfwayPoles() {
-            const poles = createRedPoles();
-            scene.add(poles);
-            // Los postes se mueven con el resto del escenario en animate()
-        }
-
         function startTimer() {
             if(timerInterval) clearInterval(timerInterval);
             timerInterval = setInterval(() => {
@@ -491,14 +470,14 @@
                     }
 
                     if (elapsedTime === 60000) {
-                        spawnHalfwayPoles(); // postes rojos a los 60s
+                        spawnFinishLine(); // Bandera de meta a los 60s para mitad de trayecto
                     }
-                    if (elapsedTime === 118000) {
-                        spawnFinishLine(); // bandera + confeti a los 118s
+                    if (elapsedTime === 115000) {
+                        spawnFinishLine();
                         createConfetiBurst();
                     }
                     if (elapsedTime === 120000) {
-                        victoryRace(); // victoria a los 120s
+                        victoryRace();
                     }
                 }
             }, 100);
