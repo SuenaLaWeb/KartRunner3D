@@ -15,7 +15,7 @@
         #ui { position: absolute; inset: 0; color: white; z-index: 10; pointer-events: none; display: none; padding: env(safe-area-inset-top) 1rem 1rem 5rem; }
         .ui-element { pointer-events: auto; }
         
-        #timer { display: none; }  /* Reloj invisible, pero sigue contando internamente */
+        #timer { display: none; }
         
         #menu { position: fixed; inset: 0; background: linear-gradient(135deg, #1e3a8a, #9333ea, #db2777); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; color: white; }
         
@@ -67,6 +67,18 @@
             box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.4);
         }
         #left-btn, #right-btn { background: #00ff00; }
+
+        /* Botones de pausa y música una línea debajo del score */
+        #ui-buttons {
+            position: absolute;
+            top: 8rem; /* una línea por debajo del score (ajustable) */
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 1.5rem;
+            z-index: 15;
+        }
     </style>
 </head>
 <body>
@@ -83,12 +95,14 @@
                 Hi-Score: <span id="hiScore">0</span>
             </div>
         </div>
-        <div class="absolute top-4 right-4 ui-element flex space-x-3">
-            <button class="bg-white/10 p-4 rounded-xl border border-white/20 active:bg-white/30" onclick="togglePause()">
-                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="white"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-            </button>
+
+        <!-- Botones de pausa y música debajo del score -->
+        <div id="ui-buttons" class="ui-element">
             <button class="bg-white/10 p-4 rounded-xl border border-white/20 active:bg-white/30" onclick="toggleBGM()">
                 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="white"><path d="M3 9v6h4l5 5v-13l-5 5h-4zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+            </button>
+            <button class="bg-white/10 p-4 rounded-xl border border-white/20 active:bg-white/30" onclick="togglePause()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="white"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
             </button>
         </div>
     </div>
@@ -131,10 +145,6 @@
         <h2 class="text-6xl font-black mb-4 text-red-500 italic tracking-tighter">¡COLISIÓN!</h2>
         <div class="bg-white/5 p-8 rounded-3xl border border-white/10 backdrop-blur-sm mb-8">
             <div class="stat-row">
-                <span class="text-white/60 uppercase text-sm font-bold">Posición</span>
-                <span id="final-rank" class="text-2xl font-black text-yellow-400">#--</span>
-            </div>
-            <div class="stat-row">
                 <span class="text-white/60 uppercase text-sm font-bold">Puntaje</span>
                 <span id="final-score" class="text-2xl font-black text-white">0</span>
             </div>
@@ -174,7 +184,7 @@
     </div>
 
     <script>
-        // --- MOTOR DE AUDIO ---
+        // --- MOTOR DE AUDIO --- (sin cambios)
         let audioCtx, bgmInterval, bgmStep = 0;
 
         function initAudio() {
@@ -420,6 +430,19 @@
             return group;
         }
 
+        function createRedPoles() {
+            const group = new THREE.Group();
+            [-1.5, 1.5].forEach(x => {
+                const pole = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.15, 0.15, 3, 8),
+                    new THREE.MeshStandardMaterial({ color: 0xff0000 })
+                );
+                pole.position.set(x * laneWidth, 1.5, -800);
+                group.add(pole);
+            });
+            return group;
+        }
+
         function createConfetiBurst() {
             const colors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff];
             for (let i = 0; i < 60; i++) {
@@ -443,6 +466,12 @@
             scene.add(gate); finishLines.push(gate);
         }
 
+        function spawnHalfwayPoles() {
+            const poles = createRedPoles();
+            scene.add(poles);
+            // Los postes se mueven con el resto del escenario en animate()
+        }
+
         function startTimer() {
             if(timerInterval) clearInterval(timerInterval);
             timerInterval = setInterval(() => {
@@ -450,7 +479,7 @@
                     elapsedTime += 100;
                     const date = new Date(0);
                     date.setMilliseconds(elapsedTime);
-                    document.getElementById('timer').innerText = date.toISOString().substr(14, 5); // sigue contando aunque invisible
+                    document.getElementById('timer').innerText = date.toISOString().substr(14, 5);
 
                     score += 10;
                     document.getElementById('score').innerText = score;
@@ -461,12 +490,15 @@
                         document.getElementById('hiScore').innerText = hiScore;
                     }
 
-                    if (elapsedTime === 60000) {  // Primera bandera a 60 segundos
-                        spawnFinishLine();
+                    if (elapsedTime === 60000) {
+                        spawnHalfwayPoles(); // postes rojos a los 60s
                     }
-                    if (elapsedTime === 120000) {  // Segunda bandera (victoria) a 120 segundos
-                        spawnFinishLine();
-                        victoryRace();
+                    if (elapsedTime === 118000) {
+                        spawnFinishLine(); // bandera + confeti a los 118s
+                        createConfetiBurst();
+                    }
+                    if (elapsedTime === 120000) {
+                        victoryRace(); // victoria a los 120s
                     }
                 }
             }, 100);
@@ -523,7 +555,7 @@
             scene.add(player);
             
             document.getElementById('hiScore').innerText = hiScore;
-            renderer.render(scene, camera); // Render inicial
+            renderer.render(scene, camera);
             lastTimestamp = performance.now();
             requestAnimationFrame(animate);
         }
@@ -545,7 +577,6 @@
             clearInterval(engineInterval);
             const date = new Date(0);
             date.setMilliseconds(elapsedTime);
-            document.getElementById('final-rank').innerText = `#${Math.max(1, Math.floor(100 - (elapsedTime / 10000) - (score / 2)))}`;
             document.getElementById('final-score').innerText = score;
             document.getElementById('final-time').innerText = date.toISOString().substr(14, 5);
             document.getElementById('ui').style.display = 'none';
