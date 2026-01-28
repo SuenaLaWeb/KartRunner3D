@@ -39,7 +39,6 @@
             width: 50px; height: 50px; border-radius: 50%; background: #222;
             border: 2px solid #444; transition: all 0.1s;
         }
-        /* Clases para activar luces */
         .light-bulb.red-on { background: #ff0000; box-shadow: 0 0 40px #ff0000; border-color: #ff5555; }
         .light-bulb.yellow-on { background: #ffcc00; box-shadow: 0 0 40px #ffcc00; border-color: #ffee55; }
         .light-bulb.green-on { background: #00ff00; box-shadow: 0 0 50px #00ff00; border-color: #55ff55; transform: scale(1.1); }
@@ -76,8 +75,16 @@
 <body>
 
     <div id="ui">
-        <div class="absolute top-5 left-5">
-            <div id="speed" class="text-4xl font-black drop-shadow-2xl italic">0 MPH</div>
+        <div class="absolute top-5 left-5 text-4xl font-black drop-shadow-2xl italic">
+            <span id="timer">00:00</span>
+        </div>
+        <div class="absolute top-5 left-1/2 -translate-x-1/2 w-48 text-center">
+            <div class="bg-slate-900/80 px-6 py-2 rounded-t-xl border-b border-white/20 text-2xl font-black">
+                Score: <span id="score">0</span>
+            </div>
+            <div class="bg-slate-800/80 px-6 py-1 rounded-b-xl text-lg">
+                Hi-Score: <span id="hiScore">0</span>
+            </div>
         </div>
         <div class="absolute top-5 right-5 ui-element flex space-x-4">
             <button class="bg-white/10 p-5 rounded-2xl border border-white/20 active:bg-white/30" onclick="togglePause()">
@@ -127,8 +134,8 @@
                 <span id="final-rank" class="text-2xl font-black text-yellow-400">#--</span>
             </div>
             <div class="stat-row">
-                <span class="text-white/60 uppercase text-sm font-bold">Monedas</span>
-                <span id="final-coins" class="text-2xl font-black text-white">0</span>
+                <span class="text-white/60 uppercase text-sm font-bold">Puntaje</span>
+                <span id="final-score" class="text-2xl font-black text-white">0</span>
             </div>
             <div class="stat-row">
                 <span class="text-white/60 uppercase text-sm font-bold">Tiempo</span>
@@ -145,19 +152,15 @@
         <div class="text-4xl mb-4">¡Felicidades! Ganaste la carrera 🏆</div>
         <div class="bg-white/5 p-8 rounded-3xl border border-white/10 backdrop-blur-sm mb-8">
             <div class="stat-row">
-                <span class="text-white/60 uppercase text-sm font-bold">Posición</span>
-                <span id="victory-rank" class="text-2xl font-black text-yellow-400">#1</span>
-            </div>
-            <div class="stat-row">
-                <span class="text-white/60 uppercase text-sm font-bold">Monedas</span>
-                <span id="victory-coins" class="text-2xl font-black text-white">0</span>
+                <span class="text-white/60 uppercase text-sm font-bold">Puntaje</span>
+                <span id="victory-score" class="text-2xl font-black text-white">0</span>
             </div>
             <div class="stat-row">
                 <span class="text-white/60 uppercase text-sm font-bold">Tiempo</span>
                 <span id="victory-time" class="text-2xl font-black text-white">00:00</span>
             </div>
         </div>
-        <button class="btn bg-white text-black text-2xl px-20" onclick="location.reload()">REINTENTAR</button>
+        <button class="btn bg-white text-black text-2xl px-20" onclick="location.reload()">JUGAR DE NUEVO</button>
         <button class="btn bg-slate-800 text-white text-lg px-20 mt-4" onclick="exitApp()">SALIR</button>
     </div>
 
@@ -231,19 +234,16 @@
             }, 120);
         }
 
-        // Fanfarria menú (chiptune retro)
         function playMenuFanfare() {
             initAudio();
             const notes = [440, 554, 659, 880, 659, 554, 440, 880];
             notes.forEach((f, i) => setTimeout(() => playSound(f, 'square', 0.2, 0.15), i * 200));
         }
 
-        // Sonido cambio marcha
         function playGearShift(high) {
             playSound(high ? 800 : 400, 'sawtooth', 0.3, 0.2);
         }
 
-        // Sonido motor constante
         let engineInterval;
         function playEngine(high) {
             if (engineInterval) clearInterval(engineInterval);
@@ -252,13 +252,11 @@
             engineInterval = setInterval(() => playSound(freq + Math.random()*step, 'triangle', 0.05, 0.08), 100);
         }
 
-        // Sonido de victoria
         function playVictoryFanfare() {
             const notes = [523, 659, 784, 1047, 784, 659, 523, 1047];
             notes.forEach((f, i) => setTimeout(() => playSound(f, 'square', 0.3, 0.2), i * 300));
         }
 
-        // Sonido de adelantamiento (como motor adelantando)
         function playOvertake() {
             playSound(200, 'sawtooth', 0.4, 0.2, 400);
         }
@@ -267,12 +265,13 @@
         let scene, camera, renderer, player;
         let laneWidth = 4.5, currentLane = 0, targetX = 0;
         let gameActive = false, isPaused = false, isStarting = false;
-        let remainingTime = 40;
-        let lap = 1;
+        let elapsedTime = 0;
+        let score = 0;
+        let hiScore = localStorage.getItem('kartHiScore') ? parseInt(localStorage.getItem('kartHiScore')) : 0;
         let obstacles = [], scenery = [], roadLines = [], clouds = [], kerbs = [], finishLines = [], confetti = [];
         let lastTimestamp = 0;
         let timerInterval = null;
-        let SPEED_FACTOR = 1.57;
+        let SPEED_FACTOR = 1.57 * 0.7; // Reducido 30%
         let isHighGear = false;
         let currentType = '';
 
@@ -453,6 +452,16 @@
                     const date = new Date(0);
                     date.setMilliseconds(elapsedTime);
                     document.getElementById('timer').innerText = date.toISOString().substr(14, 5);
+
+                    score += 10; // Suma puntos por tiempo
+                    document.getElementById('score').innerText = score;
+
+                    if (score > hiScore) {
+                        hiScore = score;
+                        localStorage.setItem('kartHiScore', hiScore);
+                        document.getElementById('hiScore').innerText = hiScore;
+                    }
+
                     if (elapsedTime === 50000) {
                         spawnFinishLine();
                     }
@@ -513,6 +522,7 @@
             player.add(createPilot(type));
             scene.add(player);
             
+            document.getElementById('hiScore').innerText = hiScore;
             lastTimestamp = performance.now();
             requestAnimationFrame(animate);
         }
@@ -535,10 +545,25 @@
             const date = new Date(0);
             date.setMilliseconds(elapsedTime);
             document.getElementById('final-rank').innerText = `#${Math.max(1, Math.floor(100 - (elapsedTime / 10000) - (score / 2)))}`;
-            document.getElementById('final-coins').innerText = score;
+            document.getElementById('final-score').innerText = score;
             document.getElementById('final-time').innerText = date.toISOString().substr(14, 5);
             document.getElementById('ui').style.display = 'none';
             document.getElementById('game-over').style.display = 'flex';
+        }
+
+        function victoryRace() {
+            gameActive = false;
+            if(bgmInterval) clearInterval(bgmInterval);
+            if(timerInterval) clearInterval(timerInterval);
+            clearInterval(engineInterval);
+            const date = new Date(0);
+            date.setMilliseconds(elapsedTime);
+            document.getElementById('victory-character').innerText = characters[currentType];
+            document.getElementById('victory-score').innerText = score;
+            document.getElementById('victory-time').innerText = date.toISOString().substr(14, 5);
+            document.getElementById('ui').style.display = 'none';
+            document.getElementById('victory').style.display = 'flex';
+            playVictoryFanfare();
         }
 
         function animate(timestamp) {
@@ -550,7 +575,6 @@
 
             player.position.x += (targetX - player.position.x) * 0.12;
             
-            // GIRO: Ajustado para que el giro (inclinación) sea coherente con mirar al horizonte (Math.PI)
             player.rotation.y = (targetX - player.position.x) * 0.08; 
             player.rotation.z = (targetX - player.position.x) * 0.04;
 
@@ -559,9 +583,8 @@
                 return;
             }
 
-            SPEED_FACTOR = isHighGear ? 3 : 1.57;
+            SPEED_FACTOR = isHighGear ? 2.1 : 1.1; // Reducido 30%
             const speed = SPEED_FACTOR;
-            document.getElementById('speed').innerText = isHighGear ? '120 MPH' : '60 MPH';
             roadLines.forEach(l => { l.position.z += speed*3; if(l.position.z > 60) l.position.z -= 4000; });
             kerbs.forEach(k => { k.position.z += speed*3.2; if(k.position.z > 60) k.position.z -= 1000; });
             scenery.forEach(s => { s.position.z += speed*3; if(s.position.z > 80) s.position.z -= 4800; });
@@ -641,6 +664,25 @@
             }
         }
 
+        // Controles con teclado
+        window.addEventListener('keydown', (e) => {
+            if (!gameActive || isPaused || isStarting) return;
+            switch (e.key.toLowerCase()) {
+                case 'a':
+                case 'arrowleft':
+                    moveLeft();
+                    break;
+                case 'd':
+                case 'arrowright':
+                    moveRight();
+                    break;
+                case ' ':
+                case 'shift':
+                    toggleGear();
+                    break;
+            }
+        });
+
         window.addEventListener('resize', () => { 
             if(camera && renderer) {
                 camera.aspect = window.innerWidth / window.innerHeight; 
@@ -649,14 +691,12 @@
             }
         });
 
-        // Forzar landscape en móviles
         if (screen.orientation) {
             screen.orientation.lock('landscape').catch(function(error) {
                 console.log(error);
             });
         }
 
-        // Iniciar fanfarria al cargar
         window.addEventListener('load', playMenuFanfare);
     </script>
 </body>
