@@ -51,20 +51,21 @@
             pointer-events: none;
         }
 
-        #controls { 
-            position: fixed; bottom: 1rem; left: 0; right: 0; 
-            display: flex; justify-content: center; align-items: center; 
-            padding: 0 1rem; z-index: 20; 
+        #powerup {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            font-size: 5rem;
+            z-index: 30;
+            cursor: pointer;
+            pointer-events: auto;
+            opacity: 0.9;
+            transition: opacity 0.3s;
         }
-        #gear-btn {
-            background: #ffcc00; color: #000; 
-            padding: clamp(1rem, 6vw, 1.5rem); 
-            border-radius: 50%; font-weight: bold; 
-            font-size: clamp(1.2rem, 5vw, 1.8rem); 
-            min-width: clamp(3.5rem, 12vw, 5rem); 
-            min-height: clamp(3.5rem, 12vw, 5rem); 
-            display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.4);
+
+        #powerup.disabled {
+            opacity: 0.3;
+            pointer-events: none;
         }
 
         #ui-buttons {
@@ -172,9 +173,8 @@
         <button class="btn bg-slate-800 text-white text-lg px-20 mt-4" onclick="exitApp()">SALIR</button>
     </div>
 
-    <div id="controls">
-        <button id="gear-btn" class="text-xl" onclick="toggleGear()">LOW/HI</button>
-    </div>
+    <!-- Power-up de rayo -->
+    <div id="powerup" class="ui-element">⚡</div>
 
     <script>
         // --- MOTOR DE AUDIO --- (sin cambios)
@@ -245,18 +245,6 @@
             notes.forEach((f, i) => setTimeout(() => playSound(f, 'square', 0.2, 0.15), i * 200));
         }
 
-        function playGearShift(high) {
-            playSound(high ? 800 : 400, 'sawtooth', 0.3, 0.2);
-        }
-
-        let engineInterval;
-        function playEngine(high) {
-            if (engineInterval) clearInterval(engineInterval);
-            const freq = high ? 200 : 100;
-            const step = high ? 50 : 30;
-            engineInterval = setInterval(() => playSound(freq + Math.random()*step, 'triangle', 0.05, 0.08), 100);
-        }
-
         function playVictoryFanfare() {
             const notes = [523, 659, 784, 1047, 784, 659, 523, 1047];
             notes.forEach((f, i) => setTimeout(() => playSound(f, 'square', 0.3, 0.2), i * 300));
@@ -277,8 +265,15 @@
         let lastTimestamp = 0;
         let timerInterval = null;
         let SPEED_FACTOR = 1.57 * 0.7;
-        let isHighGear = false;
         let currentType = '';
+
+        // Variables del power-up de turbo
+        let hasTurbo = true;
+        let isTurboActive = false;
+        let turboTimer = null;
+        const TURBO_DURATION = 5000;   // 5 segundos
+        const TURBO_COOLDOWN = 10000;  // 10 segundos total de cooldown
+        let originalKartColor;         // Para guardar el color original del kart
 
         const biomes = {
             penguin: { sky: 0xbae6fd, ground: 0xf8fafc, tree: 0xffffff, accent: 0x0ea5e9 },
@@ -525,10 +520,14 @@
             }
 
             player = new THREE.Group();
-            player.add(createKart(cfg.accent));
+            const kart = createKart(cfg.accent);
+            player.add(kart);
             player.add(createPilot(type));
             scene.add(player);
             
+            // Guardamos el color original del kart (el body es el segundo hijo del kart)
+            originalKartColor = kart.children[1].material.color.clone();
+
             document.getElementById('hiScore').innerText = hiScore;
             renderer.render(scene, camera);
             lastTimestamp = performance.now();
@@ -560,6 +559,51 @@
                 }
                 targetX = currentLane * laneWidth;
             });
+
+            // Power-up de turbo (rayo)
+            document.getElementById('powerup').addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                activateTurbo();
+            });
+            document.getElementById('powerup').addEventListener('click', activateTurbo);
+        }
+
+        // Función del power-up
+        function activateTurbo() {
+            if (!hasTurbo || isTurboActive || !gameActive || isPaused || isStarting) return;
+
+            isTurboActive = true;
+            hasTurbo = false;
+
+            // Cambiar color del kart a amarillo brillante
+            player.children[0].children[1].material.color.set(0xffff00);
+
+            // Aumentar velocidad ×1.8
+            SPEED_FACTOR *= 1.8;
+
+            // Efecto de sonido (opcional)
+            playSound(1200, 'sawtooth', 0.4, 0.2);
+
+            // Visual del power-up
+            const powerupEl = document.getElementById('powerup');
+            powerupEl.style.opacity = 0.3;
+            powerupEl.style.pointerEvents = 'none';
+
+            // Terminar turbo después de 5 segundos
+            setTimeout(() => {
+                isTurboActive = false;
+                SPEED_FACTOR /= 1.8; // Vuelve a velocidad normal
+
+                // Restaurar color original del kart
+                player.children[0].children[1].material.color.copy(originalKartColor);
+
+                // Cooldown de 10 segundos total (5 ya pasaron, faltan 5)
+                setTimeout(() => {
+                    hasTurbo = true;
+                    powerupEl.style.opacity = 0.9;
+                    powerupEl.style.pointerEvents = 'auto';
+                }, 5000);
+            }, 5000);
         }
 
         function spawnObstacle() {
@@ -576,20 +620,23 @@
             gameActive = false;
             if(bgmInterval) clearInterval(bgmInterval);
             if(timerInterval) clearInterval(timerInterval);
-            clearInterval(engineInterval);
             const date = new Date(0);
             date.setMilliseconds(elapsedTime);
             document.getElementById('final-score').innerText = score;
             document.getElementById('final-time').innerText = date.toISOString().substr(14, 5);
             document.getElementById('ui').style.display = 'none';
             document.getElementById('game-over').style.display = 'flex';
+            // Reset turbo
+            isTurboActive = false;
+            hasTurbo = true;
+            document.getElementById('powerup').style.opacity = 0.9;
+            document.getElementById('powerup').style.pointerEvents = 'auto';
         }
 
         function victoryRace() {
             gameActive = false;
             if(bgmInterval) clearInterval(bgmInterval);
             if(timerInterval) clearInterval(timerInterval);
-            clearInterval(engineInterval);
             const date = new Date(0);
             date.setMilliseconds(elapsedTime);
             document.getElementById('victory-character').innerText = characters[currentType];
@@ -598,6 +645,11 @@
             document.getElementById('ui').style.display = 'none';
             document.getElementById('victory').style.display = 'flex';
             playVictoryFanfare();
+            // Reset turbo
+            isTurboActive = false;
+            hasTurbo = true;
+            document.getElementById('powerup').style.opacity = 0.9;
+            document.getElementById('powerup').style.pointerEvents = 'auto';
         }
 
         function animate(timestamp) {
@@ -616,7 +668,6 @@
                 player.rotation.y = (targetX - player.position.x) * 0.08; 
                 player.rotation.z = (targetX - player.position.x) * 0.04;
 
-                SPEED_FACTOR = isHighGear ? 2.1 : 1.1;
                 const speed = SPEED_FACTOR;
 
                 roadLines.forEach(l => { l.position.z += speed*3; if(l.position.z > 60) l.position.z -= 4000; });
@@ -667,15 +718,6 @@
 
         window.togglePause = () => { isPaused = !isPaused; document.getElementById('pause-menu').style.display = isPaused?'flex':'none'; };
         
-        function toggleGear() {
-            if(gameActive && !isPaused && !isStarting) {
-                isHighGear = !isHighGear;
-                playGearShift(isHighGear);
-                playEngine(isHighGear);
-                document.getElementById('gear-btn').innerText = isHighGear ? 'HI' : 'LOW';
-            }
-        }
-
         function toggleBGM() {
             if (bgmInterval) {
                 clearInterval(bgmInterval);
