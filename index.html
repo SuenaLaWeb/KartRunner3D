@@ -53,10 +53,10 @@
 
         #controls { 
             position: fixed; bottom: 1rem; left: 0; right: 0; 
-            display: flex; justify-content: space-between; align-items: center; 
+            display: flex; justify-content: center; align-items: center; 
             padding: 0 1rem; z-index: 20; 
         }
-        #gear-btn, #left-btn, #right-btn {
+        #gear-btn {
             background: #ffcc00; color: #000; 
             padding: clamp(1rem, 6vw, 1.5rem); 
             border-radius: 50%; font-weight: bold; 
@@ -66,7 +66,6 @@
             display: flex; align-items: center; justify-content: center;
             box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.4);
         }
-        #left-btn, #right-btn { background: #00ff00; }
 
         #ui-buttons {
             position: absolute;
@@ -175,14 +174,11 @@
 
     <div id="controls">
         <button id="gear-btn" class="text-xl" onclick="toggleGear()">LOW/HI</button>
-        <div>
-            <button id="left-btn" class="mr-4 text-xl" onclick="moveLeft()">←</button>
-            <button id="right-btn" class="text-xl" onclick="moveRight()">→</button>
-        </div>
     </div>
 
     <script>
-        // --- MOTOR DE AUDIO ---
+        // --- MOTOR DE AUDIO --- (sin cambios)
+
         let audioCtx, bgmInterval, bgmStep = 0;
 
         function initAudio() {
@@ -470,10 +466,10 @@
                     }
 
                     if (elapsedTime === 60000) {
-                        spawnFinishLine(); // Bandera de meta a los 60s para mitad de trayecto
+                        spawnFinishLine(); // Bandera a los 60s (mitad)
                     }
                     if (elapsedTime === 115000) {
-                        spawnFinishLine();
+                        spawnFinishLine(); // Bandera final + confeti
                         createConfetiBurst();
                     }
                     if (elapsedTime === 120000) {
@@ -537,6 +533,33 @@
             renderer.render(scene, camera);
             lastTimestamp = performance.now();
             requestAnimationFrame(animate);
+
+            // Control por toque en pantalla (izquierda/derecha)
+            document.body.addEventListener('touchstart', (e) => {
+                if (!gameActive || isPaused || isStarting) return;
+                e.preventDefault();
+                const touchX = e.touches[0].clientX;
+                const halfWidth = window.innerWidth / 2;
+                if (touchX < halfWidth) {
+                    currentLane = Math.max(-1, currentLane - 1);
+                } else {
+                    currentLane = Math.min(1, currentLane + 1);
+                }
+                targetX = currentLane * laneWidth;
+            }, { passive: false });
+
+            // Soporte para click en PC (opcional)
+            document.body.addEventListener('click', (e) => {
+                if (!gameActive || isPaused || isStarting) return;
+                const clickX = e.clientX;
+                const halfWidth = window.innerWidth / 2;
+                if (clickX < halfWidth) {
+                    currentLane = Math.max(-1, currentLane - 1);
+                } else {
+                    currentLane = Math.min(1, currentLane + 1);
+                }
+                targetX = currentLane * laneWidth;
+            });
         }
 
         function spawnObstacle() {
@@ -644,20 +667,6 @@
 
         window.togglePause = () => { isPaused = !isPaused; document.getElementById('pause-menu').style.display = isPaused?'flex':'none'; };
         
-        function moveLeft() {
-            if(gameActive && !isPaused && !isStarting) {
-                currentLane = Math.max(-1, currentLane-1);
-                targetX = currentLane * laneWidth;
-            }
-        }
-
-        function moveRight() {
-            if(gameActive && !isPaused && !isStarting) {
-                currentLane = Math.min(1, currentLane+1);
-                targetX = currentLane * laneWidth;
-            }
-        }
-
         function toggleGear() {
             if(gameActive && !isPaused && !isStarting) {
                 isHighGear = !isHighGear;
@@ -675,24 +684,6 @@
                 playBGM();
             }
         }
-
-        window.addEventListener('keydown', (e) => {
-            if (!gameActive || isPaused || isStarting) return;
-            switch (e.key.toLowerCase()) {
-                case 'a':
-                case 'arrowleft':
-                    moveLeft();
-                    break;
-                case 'd':
-                case 'arrowright':
-                    moveRight();
-                    break;
-                case ' ':
-                case 'shift':
-                    toggleGear();
-                    break;
-            }
-        });
 
         window.addEventListener('resize', () => { 
             if(camera && renderer) {
