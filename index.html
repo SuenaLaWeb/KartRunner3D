@@ -78,6 +78,18 @@
             padding: 0 1.5rem;
             z-index: 15;
         }
+
+        #coins {
+            position: fixed;
+            bottom: 1rem;
+            left: 1rem;
+            font-size: 2rem;
+            color: gold;
+            z-index: 25;
+            background: rgba(0,0,0,0.5);
+            padding: 0.5rem 1rem;
+            border-radius: 10px;
+        }
     </style>
 </head>
 <body>
@@ -176,6 +188,9 @@
     <!-- Power-up de rayo -->
     <div id="powerup" class="ui-element">⚡</div>
 
+    <!-- Contador de monedas -->
+    <div id="coins">🪙 0</div>
+
     <script>
         // --- MOTOR DE AUDIO --- (sin cambios)
 
@@ -260,8 +275,9 @@
         let gameActive = false, isPaused = false, isStarting = false;
         let elapsedTime = 0;
         let score = 0;
+        let coins = 0;
         let hiScore = localStorage.getItem('kartHiScore') ? parseInt(localStorage.getItem('kartHiScore')) : 0;
-        let obstacles = [], scenery = [], roadLines = [], clouds = [], kerbs = [], finishLines = [], confetti = [];
+        let obstacles = [], scenery = [], roadLines = [], clouds = [], kerbs = [], finishLines = [], confetti = [], coinsList = [];
         let lastTimestamp = 0;
         let timerInterval = null;
         let SPEED_FACTOR = 1.57 * 0.7;
@@ -338,6 +354,7 @@
             playBGM();
             startTimer();
             spawnObstacle();
+            spawnCoin(); // Iniciar generación de monedas
 
             setTimeout(() => {
                 layer.style.display = 'none';
@@ -403,6 +420,46 @@
             head.position.set(0, 0.9, -0.2);
             group.add(head);
             return group;
+        }
+
+        function createCoin() {
+    const group = new THREE.Group();
+    const coin = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.8, 0.8, 0.1, 32),
+        new THREE.MeshStandardMaterial({
+            color: 0xffeeaa,              // dorado más claro y saturado (se ve mejor con poca luz)
+            metalness: 0.95,
+            roughness: 0.05,
+            emissive: 0x222200,           // ← pequeño brillo propio para que nunca quede negra
+            emissiveIntensity: 0.4
+        })
+    );
+    coin.rotation.x = Math.PI / 2;
+    group.add(coin);
+
+    // Opcional: pequeño anillo brillante alrededor (para más visibilidad)
+    const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(0.85, 0.08, 8, 32),
+        new THREE.MeshBasicMaterial({ color: 0xffff88 })
+    );
+    ring.rotation.x = Math.PI / 2;
+    group.add(ring);
+
+    group.position.y = 1.5;
+    return group;
+
+    new THREE.MeshBasicMaterial({ color: 0xffee77 })  // ← sin metalness, solo color plano brillante
+}
+
+        function spawnCoin() {
+            if (!gameActive || isStarting) return;
+            const lane = Math.floor(Math.random() * 3) - 1;
+            const coin = createCoin();
+            coin.position.set(lane * laneWidth, 1.5, -800);
+            scene.add(coin);
+            coinsList.push(coin);
+            // Frecuencia aumentada: cada 2–4 segundos
+            setTimeout(spawnCoin, 2000 + Math.random() * 2000);
         }
 
         function createFinishGate() {
@@ -529,6 +586,7 @@
             originalKartColor = kart.children[1].material.color.clone();
 
             document.getElementById('hiScore').innerText = hiScore;
+            document.getElementById('coins').innerText = `🪙 ${coins}`;
             renderer.render(scene, camera);
             lastTimestamp = performance.now();
             requestAnimationFrame(animate);
@@ -563,9 +621,14 @@
             // Power-up de turbo (rayo)
             document.getElementById('powerup').addEventListener('touchstart', (e) => {
                 e.preventDefault();
+                e.stopPropagation(); // Bloquea el evento para que no active cambio de carril
                 activateTurbo();
             });
-            document.getElementById('powerup').addEventListener('click', activateTurbo);
+            document.getElementById('powerup').addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                activateTurbo();
+            });
         }
 
         // Función del power-up
@@ -587,7 +650,7 @@
             // Visual del power-up
             const powerupEl = document.getElementById('powerup');
             powerupEl.style.opacity = 0.3;
-            powerupEl.style.pointerEvents = 'none';
+            powerupEl.classList.add('disabled');
 
             // Terminar turbo después de 5 segundos
             setTimeout(() => {
@@ -601,7 +664,7 @@
                 setTimeout(() => {
                     hasTurbo = true;
                     powerupEl.style.opacity = 0.9;
-                    powerupEl.style.pointerEvents = 'auto';
+                    powerupEl.classList.remove('disabled');
                 }, 5000);
             }, 5000);
         }
@@ -626,11 +689,13 @@
             document.getElementById('final-time').innerText = date.toISOString().substr(14, 5);
             document.getElementById('ui').style.display = 'none';
             document.getElementById('game-over').style.display = 'flex';
-            // Reset turbo
+            // Reset turbo y monedas
             isTurboActive = false;
             hasTurbo = true;
             document.getElementById('powerup').style.opacity = 0.9;
-            document.getElementById('powerup').style.pointerEvents = 'auto';
+            document.getElementById('powerup').classList.remove('disabled');
+            coins = 0;
+            document.getElementById('coins').innerText = `🪙 ${coins}`;
         }
 
         function victoryRace() {
@@ -645,11 +710,13 @@
             document.getElementById('ui').style.display = 'none';
             document.getElementById('victory').style.display = 'flex';
             playVictoryFanfare();
-            // Reset turbo
+            // Reset turbo y monedas
             isTurboActive = false;
             hasTurbo = true;
             document.getElementById('powerup').style.opacity = 0.9;
-            document.getElementById('powerup').style.pointerEvents = 'auto';
+            document.getElementById('powerup').classList.remove('disabled');
+            coins = 0;
+            document.getElementById('coins').innerText = `🪙 ${coins}`;
         }
 
         function animate(timestamp) {
@@ -699,6 +766,25 @@
                     }
                 }
 
+                // Recolectar monedas
+                for (let i = coinsList.length - 1; i >= 0; i--) {
+                    const coin = coinsList[i];
+                    coin.position.z += speed * 3;
+                    if (Math.abs(coin.position.z - player.position.z) < 2 && Math.abs(coin.position.x - player.position.x) < 1.5) {
+                        scene.remove(coin);
+                        coinsList.splice(i, 1);
+                        coins += 1;
+                        score += 100;
+                        document.getElementById('coins').innerText = `🪙 ${coins}`;
+                        document.getElementById('score').innerText = score;
+                        playSound(880, 'triangle', 0.2, 0.15); // Sonido de moneda
+                    }
+                    if (coin.position.z > 60) {
+                        scene.remove(coin);
+                        coinsList.splice(i, 1);
+                    }
+                }
+
                 obstacles.forEach((o, i) => {
                     o.position.z += speed*3;
                     if(Math.abs(o.position.z - player.position.z) < 2.5 && Math.abs(o.position.x - player.position.x) < 1.6) {
@@ -716,7 +802,14 @@
             renderer.render(scene, camera);
         }
 
-        window.togglePause = () => { isPaused = !isPaused; document.getElementById('pause-menu').style.display = isPaused?'flex':'none'; };
+        window.togglePause = () => { 
+            isPaused = !isPaused; 
+            document.getElementById('pause-menu').style.display = isPaused?'flex':'none'; 
+            // Pausar turbo si está activo
+            if (isPaused && isTurboActive) {
+                clearTimeout(turboTimer);
+            }
+        };
         
         function toggleBGM() {
             if (bgmInterval) {
