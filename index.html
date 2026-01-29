@@ -173,7 +173,7 @@
     </div>
 
     <div id="controls">
-        <button id="gear-btn" class="text-xl" onclick="toggleGear()">LOW/HI</button>
+        <button id="gear-btn" class="text-xl" onclick="toggleGear(event)">LOW/HI</button>
     </div>
 
     <script>
@@ -469,7 +469,7 @@
                         spawnFinishLine(); // Bandera a los 60s (mitad)
                     }
                     if (elapsedTime === 115000) {
-                        spawnFinishLine(); // Bandera final + confeti
+                        spawnFinishLine(); // Bandera final
                         createConfetiBurst();
                     }
                     if (elapsedTime === 120000) {
@@ -548,7 +548,7 @@
                 targetX = currentLane * laneWidth;
             }, { passive: false });
 
-            // Soporte para click en PC (opcional)
+            // Soporte para click en PC
             document.body.addEventListener('click', (e) => {
                 if (!gameActive || isPaused || isStarting) return;
                 const clickX = e.clientX;
@@ -667,7 +667,8 @@
 
         window.togglePause = () => { isPaused = !isPaused; document.getElementById('pause-menu').style.display = isPaused?'flex':'none'; };
         
-        function toggleGear() {
+        function toggleGear(e) {
+            e.stopPropagation(); // ← Esto evita que el toque en el botón active también el cambio de carril
             if(gameActive && !isPaused && !isStarting) {
                 isHighGear = !isHighGear;
                 playGearShift(isHighGear);
