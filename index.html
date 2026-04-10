@@ -171,14 +171,14 @@ body{margin:0;overflow:hidden;font-family:'Press Start 2P',monospace;background:
   </div>
   <div id="lap-hud" class="sp"><span class="sl">LAP</span><span class="lap-val" id="lap-val">1 / 3</span></div>
   <div id="ui-btns">
-    <button class="snes-btn" onclick="toggleBGM()">♪</button>
-    <button class="snes-btn" onclick="togglePause()">▐▐</button>
+    <button class="snes-btn" onclick="toggleBGM()" ontouchend="event.preventDefault();toggleBGM()">♪</button>
+    <button class="snes-btn" onclick="togglePause()" ontouchend="event.preventDefault();togglePause()">▐▐</button>
   </div>
   <div id="current-item">
     <div class="item-box-hud">
       <span class="item-emoji" id="item-emoji">❓</span>
       <span class="item-lbl" id="item-name">ITEM</span>
-      <button class="item-use-btn" onclick="useItem()">USO ▶</button>
+      <button class="item-use-btn" onclick="useItem()" ontouchend="event.preventDefault();useItem()">USO ▶</button>
     </div>
   </div>
   <div id="item-notify"><div class="notify-inner"><span class="notify-emoji" id="notify-emoji">🍄</span><div class="notify-txt" id="notify-txt">HONGO!</div></div></div>
@@ -1065,6 +1065,9 @@ function animate(ts){
 // ═══════════════════════════════════════════════
 function onTouch(e){
   if(!gameActive||isPaused||isStarting)return;
+  // Dejar pasar eventos en botones y elementos interactivos
+  const tag=e.target.tagName.toLowerCase();
+  if(tag==='button'||e.target.closest('#current-item')||e.target.closest('#ui-btns')||e.target.closest('.item-use-btn'))return;
   e.preventDefault();
   const tx=e.touches[0].clientX;
   if(tx<innerWidth/2)curLane=Math.max(-1,curLane-1);
@@ -1073,7 +1076,8 @@ function onTouch(e){
 }
 function onClick(e){
   if(!gameActive||isPaused||isStarting)return;
-  if(e.target.closest('#current-item')||e.target.closest('#ui-btns'))return;
+  const tag=e.target.tagName.toLowerCase();
+  if(tag==='button'||e.target.closest('#current-item')||e.target.closest('#ui-btns')||e.target.closest('.item-use-btn'))return;
   if(e.clientX<innerWidth/2)curLane=Math.max(-1,curLane-1);
   else curLane=Math.min(1,curLane+1);
   targetX=curLane*laneW;updateLaneInd();
