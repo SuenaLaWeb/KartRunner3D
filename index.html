@@ -306,7 +306,7 @@ function toggleBGM(){bgmOn=!bgmOn;if(!bgmOn&&bgmInterval){clearInterval(bgmInter
 let scene,camera,renderer,player,playerKart;
 let laneW=4.5,curLane=0,targetX=0;
 let gameActive=false,isPaused=false,isStarting=false;
-let elapsed=0,score=0,coins=0,itemsUsed=0;
+let elapsed=0,score=0,coins=parseInt(localStorage.getItem("krCoins")||"0"),itemsUsed=0;
 let currentLap=1,TOTAL_LAPS=3;
 let hiScore=parseInt(localStorage.getItem('krHS')||'0');
 let SPEED=1.2,MAX_SPEED=2.2;
@@ -316,6 +316,9 @@ let timerInt=null,lastTS=0;
 let currentType='';
 let heldItem=null; // {type,emoji,name}
 let starActive=false,starTimer=0;
+let isHit=false,rivalsSlowed=false;
+let targetSPEED=1.2;
+let hitStartTime=0,hitBaseSpeed=0;
 let bananaList=[]; // bananas colocadas en pista
 let itemsUsedCount=0;
 
@@ -341,6 +344,7 @@ async function startRace(type){
   document.getElementById('menu').style.display='none';
   document.getElementById('ui').style.display='block';
   document.getElementById('hiScore').textContent=padScore(hiScore);
+  document.getElementById('coin-count').textContent='×'+String(coins).padStart(2,'00');
   buildScene(type);
   gameActive=true;isStarting=true;
   const layer=document.getElementById('countdown-layer');
@@ -762,8 +766,8 @@ function startTimer(){
       score+=10;
       document.getElementById('score').textContent=padScore(score);
       if(score>hiScore){hiScore=score;localStorage.setItem('krHS',hiScore);document.getElementById('hiScore').textContent=padScore(hiScore)}
-      // Velocidad progresiva por vuelta
-      SPEED=Math.min(MAX_SPEED,1.2+(currentLap-1)*0.3+elapsed/240000*0.5);
+      // Velocidad progresiva por vuelta (solo actualiza el objetivo, no SPEED directo)
+      if(!isHit) targetSPEED=Math.min(MAX_SPEED,1.2+(currentLap-1)*0.3+elapsed/240000*0.5);
       updateSpeedBar();
     }
   },100);
@@ -799,18 +803,33 @@ function useItem(){
   playItemUse();
   itemsUsedCount++;
   switch(heldItem.type){
-    case 'mushroom':
-      SPEED=Math.min(MAX_SPEED*1.3,SPEED*1.8);
-      flashEffect('#ffcc00',2000);
-      showNotify('🍄','TURBO!',1500);
-      setTimeout(()=>SPEED=Math.min(MAX_SPEED,SPEED/1.8),3000);
-      break;
-    case 'lightning':
-      SPEED=Math.min(MAX_SPEED*1.5,SPEED*2);
-      flashEffect('#ffff00',3000);
-      showNotify('⚡','MEGA TURBO!',1500);
-      setTimeout(()=>SPEED=Math.min(MAX_SPEED,SPEED/2),4000);
-      break;
+    case 'mushroom':{
+      const spBefore=targetSPEED;
+      const mxBefore=MAX_SPEED;
+      MAX_SPEED=mxBefore*1.5;
+      SPEED=spBefore*1.5;
+      targetSPEED=SPEED;
+      flashEffect('#ffcc00',5000);
+      showNotify('🍄','TURBO x1.5!',1500);
+      setTimeout(()=>{ targetSPEED=spBefore; MAX_SPEED=mxBefore; },5000);
+      break;}
+    case 'lightning':{
+      const speedBefore=targetSPEED;
+      const maxBefore=MAX_SPEED;
+      MAX_SPEED=maxBefore*1.6;
+      SPEED=speedBefore*1.6;
+      targetSPEED=SPEED;
+      rivalsSlowed=true;
+      flashEffect('#ffff00',5000);
+      showNotify('⚡','¡RAYO! RIVALES FRENADOS',1800);
+      playSound(300,'sawtooth',.5,.15,80);
+      setTimeout(()=>{
+        targetSPEED=speedBefore;
+        MAX_SPEED=maxBefore;
+        rivalsSlowed=false;
+        showNotify('⚡','RIVALES NORMALES',1000);
+      },5000);
+      break;}
     case 'star':
       starActive=true;starTimer=5000;
       flashEffect('#ffff88',5000,'rainbow');
@@ -938,6 +957,28 @@ function animate(ts){
   lastTS=ts;
 
   if(gameActive&&!isStarting){
+
+    // Interpolación de velocidad tras choque
+    if(isHit){
+      const elapsed_hit=(performance.now()-hitStartTime)/1000; // segundos
+      if(elapsed_hit<2.0){
+        // 2 segundos a velocidad 0
+        SPEED=0;
+      } else if(elapsed_hit<5.0){
+        // Recuperación suave lineal de 2s a 5s (0% → 100%)
+        const t=(elapsed_hit-2.0)/3.0; // 0..1
+        SPEED=hitBaseSpeed*t;
+      } else {
+        // Recuperación completa
+        SPEED=hitBaseSpeed;
+        isHit=false;
+        targetSPEED=hitBaseSpeed;
+      }
+    } else {
+      // Interpolación suave hacia velocidad objetivo (sin hit)
+      SPEED+=(targetSPEED-SPEED)*0.05;
+    }
+
     const sp=SPEED;
 
     // Jugador
@@ -1023,6 +1064,7 @@ function animate(ts){
       if(Math.abs(c.position.z-player.position.z)<(2+spd3)&&Math.abs(c.position.x-player.position.x)<1.6){
         scene.remove(c);coinsList.splice(i,1);
         coins++;score+=100;
+        localStorage.setItem('krCoins',coins);
         document.getElementById('coin-count').textContent='×'+String(coins).padStart(2,'0');
         document.getElementById('score').textContent=padScore(score);
         playCoin();showCoinPopup();
@@ -1038,19 +1080,28 @@ function animate(ts){
     }
 
     // Obstáculos
+    const obsSpd=rivalsSlowed ? spd3*0.5 : spd3;
     for(let i=obstacles.length-1;i>=0;i--){
-      const o=obstacles[i];o.position.z+=spd3;
+      const o=obstacles[i];o.position.z+=obsSpd;
       // Ruedas girando
-      o.children.forEach((c,idx)=>{if(idx>=6)c.rotation.x+=sp*.15});
+      o.children.forEach((c,idx)=>{if(idx>=6)c.rotation.x+=(rivalsSlowed?sp*.075:sp*.15)});
       // Colisión - si tiene estrella, destruir obstáculo
-      if(Math.abs(o.position.z-player.position.z)<(2.5+spd3)&&Math.abs(o.position.x-player.position.x)<1.7){
+      if(!isHit&&Math.abs(o.position.z-player.position.z)<(2.5+obsSpd)&&Math.abs(o.position.x-player.position.x)<1.7){
         if(starActive){
           scene.remove(o);obstacles.splice(i,1);score+=300;
           document.getElementById('score').textContent=padScore(score);
           showNotify('⭐','¡APLASTADO! +300',1000);
           playSound(660,'square',.3,.15,1200);
         } else {
-          doGameOver();return;
+          if(!isHit){
+            isHit=true;
+            hitStartTime=performance.now();
+            hitBaseSpeed=targetSPEED;
+            SPEED=0;
+            flashEffect('#ff0000',2000);
+            showNotify('💥','¡CHOQUE!',1500);
+            playHit();
+          }
         }
       }
       if(o.position.z>60){scene.remove(o);obstacles.splice(i,1)}
