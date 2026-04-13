@@ -381,10 +381,14 @@ let bgmOn=true, bgmInterval=null, bgmStep=0;
 
 // Curvas y reducción de carriles
 let curveActive=false, curveDirection=0, curveIntensity=0, curveTimer=0;
-let laneCount=3; // carriles activos (puede bajar a 2 o 1)
+let laneCount=3;
 let laneReduceTimer=0, laneReduceActive=false;
 let nextCurveIn=0, nextLaneReduceIn=0;
 let cameraShakeX=0;
+// Curva: offset acumulado que se aplica a todos los objetos en X
+let curveOffset=0, curveOffsetTarget=0;
+// Reducción de carriles: ancho objetivo de los bordillos
+let kerbTargetX=1.65, kerbCurrentX=1.65; // multiplicador sobre laneW
 
 const ITEMS=[
   {type:'mushroom',emoji:'🍄',name:'HONGO'},
@@ -448,6 +452,8 @@ function loadTrack(idx){
   isHit=false;rivalsSlowed=false;starActive=false;
   curveActive=false;curveTimer=0;laneCount=3;
   laneReduceActive=false;
+  curveOffset=0;curveOffsetTarget=0;
+  kerbTargetX=1.65;kerbCurrentX=1.65;
   nextCurveIn=cfg.curveFreq;
   nextLaneReduceIn=cfg.laneReduction?15000:999999;
   lapFinishDist=Math.round(cfg.baseSpeed*3*60*cfg.lapDuration/TOTAL_LAPS);
@@ -577,14 +583,14 @@ function buildScene(track){
   for(let i=0;i<150;i++){
     [-.5,.5].forEach(lx=>{
       const ln=new THREE.Mesh(new THREE.PlaneGeometry(.25,8),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.25}));
-      ln.rotation.x=-Math.PI/2;ln.position.set(lx*laneW,.02,-i*40);scene.add(ln);roadLines.push(ln);
+      ln.rotation.x=-Math.PI/2;ln.position.set(lx*laneW,.02,-i*40);ln.userData.baseX=lx*laneW;scene.add(ln);roadLines.push(ln);
     });
   }
   // Bordillos
   for(let i=0;i<150;i++){
     [-1,1].forEach(s=>{
       const k=new THREE.Mesh(new THREE.BoxGeometry(1.8,.25,9),new THREE.MeshLambertMaterial({color:i%2===0?track.kerbA:track.kerbB}));
-      k.position.set(s*(laneW*1.65),.12,-i*9);scene.add(k);kerbs.push(k);
+      k.position.set(s*(laneW*1.65),.12,-i*9);k.userData.baseX=s*(laneW*1.65);k.userData.side=s;scene.add(k);kerbs.push(k);
     });
   }
   // Decoración temática
@@ -617,18 +623,18 @@ function buildTrackDecor(track){
     const type=Math.floor(Math.random()*3);
     if(type===0){
       const m=buildMushroom(track.mushroomColors[Math.floor(Math.random()*track.mushroomColors.length)],1.2+Math.random()*1.5);
-      m.position.set(x,0,z);scene.add(m);scenery.push(m);
+      m.position.set(x,0,z);m.userData.baseX=x;scene.add(m);scenery.push(m);
     } else if(type===1){
-      const t=buildSNESTree(track.treeColor);t.position.set(x,0,z);scene.add(t);scenery.push(t);
+      const t=buildSNESTree(track.treeColor);t.position.set(x,0,z);t.userData.baseX=x;scene.add(t);scenery.push(t);
     } else {
-      const qb=buildQBlock();qb.position.set(x,2+Math.random()*2,z);scene.add(qb);scenery.push(qb);
+      const qb=buildQBlock();qb.position.set(x,2+Math.random()*2,z);qb.userData.baseX=x;scene.add(qb);scenery.push(qb);
     }
   }
   // Flores
   for(let i=0;i<80;i++){
     const side=Math.random()>.5?1:-1;
     const fl=new THREE.Mesh(new THREE.SphereGeometry(.4,6,6),new THREE.MeshLambertMaterial({color:[0xff4488,0xffff00,0xff8800,0xff2244][Math.floor(Math.random()*4)]}));
-    fl.position.set(side*(13+Math.random()*20),.4,-i*30-15);scene.add(fl);scenery.push(fl);
+    const fx=side*(13+Math.random()*20);fl.position.set(fx,.4,-i*30-15);fl.userData.baseX=fx;scene.add(fl);scenery.push(fl);
   }
 }
 
@@ -813,24 +819,25 @@ function triggerCurve(){
 function triggerLaneReduce(){
   if(laneReduceActive||laneCount<=1)return;
   laneReduceActive=true;
-  laneCount=laneCount>1?laneCount-1:1;
-  // Aviso
-  showNotify('⚠','CARRIL CERRADO!',1500);
-  // Actualizar indicadores
+  laneCount=2; // cerrar a 2 carriles
+  // Estrechar bordillos visualmente: de 1.65 a 1.0 (cierra el carril exterior)
+  kerbTargetX=1.0;
+  showNotify('⚠','¡CARRIL CERRADO!',1500);
+  // Actualizar indicadores HUD
   for(let i=0;i<3;i++){
     const d=document.getElementById('ld'+i);
-    if(d) d.style.opacity=i<laneCount?'1':'0.2';
+    if(d) d.style.opacity=i<2?'1':'0.25';
   }
-  // Restaurar tras 8 segundos
+  // Restaurar a 8 segundos
   setTimeout(()=>{
     laneCount=3;laneReduceActive=false;
+    kerbTargetX=1.65; // volver a ancho original
     for(let i=0;i<3;i++){const d=document.getElementById('ld'+i);if(d)d.style.opacity='1'}
     showNotify('✅','CARRILES ABIERTOS',1000);
     // Corregir carril si quedó fuera de rango
-    const maxLane=Math.floor(laneCount/2);
-    if(Math.abs(curLane)>maxLane){curLane=curLane>0?maxLane:-maxLane;targetX=curLane*laneW}
+    if(Math.abs(curLane)>1){curLane=curLane>0?1:-1;targetX=curLane*laneW}
   },8000);
-  nextLaneReduceIn=CC_CONFIG[selectedCC].laneReduction?20000+Math.random()*10000:999999;
+  nextLaneReduceIn=CC_CONFIG[selectedCC].laneReduction?18000+Math.random()*10000:999999;
 }
 
 // ═══════════════════════════════════════════
@@ -952,22 +959,31 @@ function animate(ts){
     const sp=SPEED;
     const spd3=sp*3;
 
-    // ── Curvas ──
+    // ── CURVAS reales ──
     if(curveActive){
       curveTimer-=dt;
-      // Desplazar cámara y decoración lateralmente
-      cameraShakeX+=(curveDirection*curveIntensity*.08-cameraShakeX)*.06;
-      camera.position.x=cameraShakeX*2;
-      // Mover bordillos y decoración para simular curva
-      roadLines.forEach(l=>{l.position.x+=(curveDirection*sp*.12-0)*.03});
+      // Objetivo de desplazamiento lateral: la curva empuja todo en X
+      curveOffsetTarget=curveDirection*curveIntensity*6;
       if(curveTimer<=0){
-        curveActive=false;cameraShakeX=0;camera.position.x=0;
-        // Recentrar decoración gradualmente
+        curveActive=false;
+        curveOffsetTarget=0; // volver al centro
       }
     } else {
-      // Recentrar cámara suavemente
-      camera.position.x+=(0-camera.position.x)*.04;
+      curveOffsetTarget=0;
     }
+    // Interpolar suavemente el offset de curva
+    curveOffset+=(curveOffsetTarget-curveOffset)*0.04;
+    // Aplicar offset a cámara (efecto de perspectiva de curva)
+    camera.position.x=curveOffset*0.35;
+    camera.lookAt(curveOffset*0.15, 0.5, -10);
+
+    // ── REDUCCIÓN DE CARRILES: interpolar bordillos ──
+    kerbCurrentX+=(kerbTargetX-kerbCurrentX)*0.06;
+    kerbs.forEach(k=>{
+      // Ajustar X de cada bordillo según su lado (positivo o negativo)
+      const side=k.position.x>0?1:-1;
+      k.position.x=side*(laneW*kerbCurrentX);
+    });
 
     // ── Jugador ──
     player.position.x+=(targetX-player.position.x)*.13;
@@ -986,10 +1002,29 @@ function animate(ts){
       }
     }
 
-    // ── Scroll ──
-    roadLines.forEach(l=>{l.position.z+=spd3;if(l.position.z>60)l.position.z-=6000});
-    kerbs.forEach(k=>{k.position.z+=spd3*1.05;if(k.position.z>60)k.position.z-=1350});
-    scenery.forEach(s=>{s.position.z+=spd3;if(s.position.z>80)s.position.z-=3850});
+    // ── Scroll con efecto de curva basado en baseX ──
+    // X = baseX + curveOffset * factor  (nunca acumula, siempre relativo a origen)
+    const lineShift   = curveOffset * 0.5;  // líneas de pista: se curvan moderado
+    const kerbShift   = curveOffset * 0.2;  // bordillos: se curvan poco (son parte de la pista)
+    const sceneryShift= curveOffset * 1.8;  // decoración lateral: se curva más (paralaje)
+
+    roadLines.forEach(l=>{
+      l.position.z+=spd3;
+      l.position.x=(l.userData.baseX||0)+lineShift;
+      if(l.position.z>60)l.position.z-=6000;
+    });
+    kerbs.forEach(k=>{
+      k.position.z+=spd3*1.05;
+      // Bordillos también respetan la reducción de carriles (kerbCurrentX)
+      const side=k.userData.side||( k.userData.baseX>0?1:-1 );
+      k.position.x=side*(laneW*kerbCurrentX)+kerbShift*side*0.3;
+      if(k.position.z>60)k.position.z-=1350;
+    });
+    scenery.forEach(s=>{
+      s.position.z+=spd3;
+      s.position.x=(s.userData.baseX||0)+sceneryShift;
+      if(s.position.z>80)s.position.z-=3850;
+    });
     clouds.forEach(c=>{c.position.z+=sp*.15;if(c.position.z>200)c.position.z=-2000});
 
     // ── Meta ──
